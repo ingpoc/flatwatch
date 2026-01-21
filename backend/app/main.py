@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import API_TITLE, API_VERSION
 from .database import init_db, get_db_connection
 from .models import HealthResponse
-from .routers import auth
+from .routers import auth, admin
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health", response_model=HealthResponse)
