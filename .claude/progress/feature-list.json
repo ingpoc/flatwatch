@@ -28,7 +28,7 @@
       "id": "F004",
       "description": "RBAC - Role-based access control (Resident, Admin, Super-admin)",
       "priority": 10,
-      "status": "pending",
+      "status": "implemented",
       "tier": "mvp",
       "acceptance": "Three roles implemented with proper permissions"
     },
