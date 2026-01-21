@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* DRAMS Design Tokens for FlatWatch */
+/* Dieter Rams-inspired "less, but better" design system */
+
+:root {
+  /* Colors */
+  --color-orange-primary: rgb(255, 97, 26);
+  --color-orange-highlight: rgb(255, 150, 102);
+  --color-gray-track: rgb(238, 238, 238);
+  --color-gray-hover: rgb(232, 232, 232);
+  --color-text-dark: #333;
+  --color-text-light: #999;
+  --color-white: #ffffff;
+
+  /* Background & Foreground */
+  --background: var(--color-white);
+  --foreground: var(--color-text-dark);
+
+  /* Border Radius */
+  --radius-pill: 48px;
+  --radius-circle: 50%;
+  --radius-card: 20px;
+  --radius-small: 8px;
+
+  /* Animation */
+  --easing-primary: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 0.2s;
+  --duration-standard: 0.3s;
+  --duration-slow: 0.6s;
+
+  /* Shadows */
+  --shadow-subtle: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lift: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-orange: 0 2px 8px rgba(255, 97, 26, 0.3);
+}
+
+@theme inline {
+  /* Semantic color mapping */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* DRAMS color palette */
+  --color-orange: var(--color-orange-primary);
+  --color-orange-highlight: var(--color-orange-highlight);
+  --color-gray: var(--color-gray-track);
+  --color-text: var(--color-text-dark);
+  --color-text-muted: var(--color-text-light);
+
+  /* Radius tokens */
+  --radius-pill: var(--radius-pill);
+  --radius-card: var(--radius-card);
+  --radius-small: var(--radius-small);
+
+  /* Animation tokens */
+  --ease-out: var(--easing-primary);
+}
+
+/* Global styles */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* DRAMS Orange Gradient Action Pattern */
+.action-gradient {
+  background: radial-gradient(
+    50% 50% at 30% 30%,
+    var(--color-orange-highlight) 0%,
+    var(--color-orange-primary) 100%
+  );
+}
+
+/* DRAMS Gray Track Pattern */
+.gray-track {
+  background: var(--color-gray-track);
+}
+
+/* DRAMS Focus Indicator */
+*:focus-visible {
+  outline: 2px solid var(--color-orange-primary);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: var(--easing-primary);
+  transition-duration: var(--duration-standard);
+}
+
+/* Disable transition for preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
