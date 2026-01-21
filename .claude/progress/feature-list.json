@@ -36,7 +36,7 @@
       "id": "F005",
       "description": "Live Money Feed - Razorpay API integration for transaction ingestion",
       "priority": 10,
-      "status": "pending",
+      "status": "implemented",
       "tier": "mvp",
       "acceptance": "Transactions polled every 5min, stored in DB"
     },
