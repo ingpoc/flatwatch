@@ -1,6 +1,10 @@
 /* FlatWatch - Society Cash Tracker */
 /* DRAMS Design: "Less, but better" - Dieter Rams principles */
 
+'use client';
+
+import Link from 'next/link';
+
 export default function Home() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-white font-sans">
@@ -22,9 +26,11 @@ export default function Home() {
           </p>
 
           {/* DRAMS Action Button */}
-          <button className="h-12 w-full rounded-full bg-[rgb(255,97,26)] px-6 text font-medium text-white shadow-[0_2px_8px_rgba(255,97,26,0.3)] transition-all hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95">
-            Get Started
-          </button>
+          <Link href="/dashboard">
+            <button className="h-12 w-full rounded-full bg-[rgb(255,97,26)] px-6 text font-medium text-white shadow-[0_2px_8px_rgba(255,97,26,0.3)] transition-all hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95">
+              Get Started
+            </button>
+          </Link>
         </div>
 
         {/* Status indicator */}
