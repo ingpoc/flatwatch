@@ -21,6 +21,15 @@ class Transaction(TransactionBase):
     receipt_path: Optional[str] = None
     verified: bool = False
     created_at: datetime
+    entered_by: Optional[int] = None
+    approved_by: Optional[int] = None
+    approved_at: Optional[datetime] = None
+
+    # Attribution info (joined data)
+    entered_by_name: Optional[str] = None
+    entered_by_role: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    approved_by_role: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

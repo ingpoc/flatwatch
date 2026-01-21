@@ -9,6 +9,10 @@ interface Transaction {
   vpa: string | null;
   timestamp: string;
   verified: boolean;
+  entered_by_name: string | null;
+  entered_by_role: string | null;
+  approved_by_name: string | null;
+  approved_by_role: string | null;
 }
 
 interface TransactionListProps {
@@ -67,6 +71,17 @@ export function TransactionList({ transactions }: TransactionListProps) {
                 <p className="text-sm text-[#999]">
                   {txn.vpa || 'Unknown'} • {formatDate(txn.timestamp)}
                 </p>
+                {/* Attribution */}
+                {(txn.entered_by_name || txn.approved_by_name) && (
+                  <p className="mt-1 text-xs text-[#999]">
+                    {txn.entered_by_name && (
+                      <span>Entered by {txn.entered_by_name} ({txn.entered_by_role})</span>
+                    )}
+                    {txn.approved_by_name && (
+                      <span> • Approved by {txn.approved_by_name} ({txn.approved_by_role})</span>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
 

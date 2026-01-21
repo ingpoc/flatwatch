@@ -18,6 +18,7 @@ def init_db() -> None:
     db_path = get_db_path()
 
     with sqlite3.connect(db_path) as conn:
+        # Create transactions table with attribution
         conn.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +29,12 @@ def init_db() -> None:
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 receipt_path TEXT,
                 verified BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                entered_by INTEGER,
+                approved_by INTEGER,
+                approved_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (entered_by) REFERENCES users(id),
+                FOREIGN KEY (approved_by) REFERENCES users(id)
             )
         """)
 

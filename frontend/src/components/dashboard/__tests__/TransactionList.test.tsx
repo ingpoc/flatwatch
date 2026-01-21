@@ -11,6 +11,10 @@ describe('TransactionList', () => {
       vpa: 'resident1@upi',
       timestamp: '2025-01-20T10:30:00Z',
       verified: true,
+      entered_by_name: 'Admin User',
+      entered_by_role: 'super_admin',
+      approved_by_name: null,
+      approved_by_role: null,
     },
     {
       id: 2,
@@ -20,6 +24,10 @@ describe('TransactionList', () => {
       vpa: 'society@upi',
       timestamp: '2025-01-20T09:15:00Z',
       verified: false,
+      entered_by_name: 'Resident User',
+      entered_by_role: 'resident',
+      approved_by_name: null,
+      approved_by_role: null,
     },
   ]
 
