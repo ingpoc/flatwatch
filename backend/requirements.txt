@@ -1,0 +1,9 @@
+# Requirements for FlatWatch Backend
+# Generated for Render.com deployment
+
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.0
+python-multipart==0.0.12
+python-jose[cryptography]==3.3.0
+cryptography==46.0.3

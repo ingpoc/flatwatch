@@ -1,0 +1,17 @@
+# Render.com deployment configuration for FlatWatch Backend
+services:
+  - type: web
+    name: flatwatch-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: PORT
+        value: 8000
+      # Add your actual secret keys in Render dashboard
+      - key: SECRET_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
