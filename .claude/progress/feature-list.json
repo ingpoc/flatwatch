@@ -4,7 +4,7 @@
       "id": "F001",
       "description": "Project scaffolding - Initialize Next.js frontend with Tailwind CSS",
       "priority": 10,
-      "status": "pending",
+      "status": "implemented",
       "tier": "mvp",
       "acceptance": "Next.js app runs locally, Tailwind configured"
     },
