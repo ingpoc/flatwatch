@@ -84,7 +84,7 @@
       "id": "F011",
       "description": "Receipt Snap - Auto-match transactions within ±2 hours",
       "priority": 20,
-      "status": "pending",
+      "status": "implemented",
       "tier": "core",
       "acceptance": "Receipts matched to UPI entries automatically"
     },
