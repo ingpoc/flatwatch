@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "token-efficient": {
+      "command": "srt",
+      "args": [
+        "node",
+        "/Users/gurusharan/Documents/remote-claude/Research/society-transparency-system/mcp/token-efficient-mcp/dist/index.js"
+      ]
+    },
+    "context-graph": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/gurusharan/Documents/remote-claude/Research/society-transparency-system/mcp/context-graph-mcp",
+        "run",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "VOYAGE_API_KEY": "${VOYAGE_API_KEY}"
+      }
+    }
+  }
+}

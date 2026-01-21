@@ -1,0 +1,219 @@
+{
+  "features": [
+    {
+      "id": "F001",
+      "description": "Project scaffolding - Initialize Next.js frontend with Tailwind CSS",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Next.js app runs locally, Tailwind configured"
+    },
+    {
+      "id": "F002",
+      "description": "Project scaffolding - Initialize FastAPI backend with SQLite",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "FastAPI server runs, SQLite database created"
+    },
+    {
+      "id": "F003",
+      "description": "Authentication - Firebase Auth integration with MFA",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Users can sign up/login, MFA enabled"
+    },
+    {
+      "id": "F004",
+      "description": "RBAC - Role-based access control (Resident, Admin, Super-admin)",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Three roles implemented with proper permissions"
+    },
+    {
+      "id": "F005",
+      "description": "Live Money Feed - Razorpay API integration for transaction ingestion",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Transactions polled every 5min, stored in DB"
+    },
+    {
+      "id": "F006",
+      "description": "Live Money Feed - Test mode with simulated transactions",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Test data generates realistic transactions"
+    },
+    {
+      "id": "F007",
+      "description": "Shame Dashboard - Real-time financial metrics display",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Balance, inflows/outflows, unmatched entries shown"
+    },
+    {
+      "id": "F008",
+      "description": "Shame Dashboard - Transaction attribution (name/role)",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Each transaction shows who approved it"
+    },
+    {
+      "id": "F009",
+      "description": "Receipt Snap - Document upload (PDF, images, Excel/CSV)",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Files upload successfully to cloud storage"
+    },
+    {
+      "id": "F010",
+      "description": "Receipt Snap - OCR integration for receipt data extraction",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Amount, date, vendor extracted from receipts"
+    },
+    {
+      "id": "F011",
+      "description": "Receipt Snap - Auto-match transactions within ±2 hours",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Receipts matched to UPI entries automatically"
+    },
+    {
+      "id": "F012",
+      "description": "Receipt Snap - Flag levels (Red/Yellow/Green)",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Mismatches flagged with appropriate color"
+    },
+    {
+      "id": "F013",
+      "description": "Chat Guard - Claude Agent SDK integration",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "AI agent responds to basic queries"
+    },
+    {
+      "id": "F014",
+      "description": "Chat Guard - Natural language financial queries",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Users can query transactions in plain language"
+    },
+    {
+      "id": "F015",
+      "description": "Chat Guard - Bye-laws knowledge base integration",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Responses include compliance references"
+    },
+    {
+      "id": "F016",
+      "description": "Challenge Mode - Dispute initiation via dashboard/chat",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Residents can flag suspicious transactions"
+    },
+    {
+      "id": "F017",
+      "description": "Challenge Mode - 48-hour resolution timer",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Auto-reject after 48h without evidence"
+    },
+    {
+      "id": "F018",
+      "description": "Challenge Mode - Push notifications for disputes",
+      "priority": 30,
+      "status": "pending",
+      "tier": "full",
+      "acceptance": "Users notified of new challenges/resolutions"
+    },
+    {
+      "id": "F019",
+      "description": "Security - AES-256 encryption for sensitive data",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "Data encrypted at rest and in transit"
+    },
+    {
+      "id": "F020",
+      "description": "Security - Immutable audit trails",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "All actions logged, no delete function"
+    },
+    {
+      "id": "F021",
+      "description": "AI Analysis - Daily automated mismatch scanning",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "Midnight cron job flags discrepancies"
+    },
+    {
+      "id": "F022",
+      "description": "Notifications - Email summaries (daily/weekly)",
+      "priority": 30,
+      "status": "pending",
+      "tier": "full",
+      "acceptance": "Users receive scheduled financial summaries"
+    },
+    {
+      "id": "F023",
+      "description": "Mobile - Responsive design for mobile-first experience",
+      "priority": 10,
+      "status": "pending",
+      "tier": "mvp",
+      "acceptance": "UI works on mobile devices"
+    },
+    {
+      "id": "F024",
+      "description": "Accessibility - WCAG 2.1 compliance",
+      "priority": 30,
+      "status": "pending",
+      "tier": "full",
+      "acceptance": "Screen reader support, keyboard navigation"
+    },
+    {
+      "id": "F025",
+      "description": "Deployment - Vercel/Render hosting setup",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "App deployed to production URL"
+    },
+    {
+      "id": "F026",
+      "description": "Testing - Unit and integration tests",
+      "priority": 20,
+      "status": "pending",
+      "tier": "core",
+      "acceptance": "80%+ code coverage, CI/CD pipeline"
+    }
+  ],
+  "metadata": {
+    "total_features": 26,
+    "mvp_features": 14,
+    "core_features": 10,
+    "full_features": 4,
+    "created_date": "2026-01-21"
+  }
+}

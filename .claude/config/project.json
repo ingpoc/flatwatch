@@ -1,0 +1,9 @@
+{
+  "project_type": "unknown",
+  "dev_server_port": 3000,
+  "test_command": "echo 'No test command configured'",
+  "health_check": "",
+  "init_script": "./scripts/init.sh",
+  "required_env": [],
+  "required_services": []
+}
