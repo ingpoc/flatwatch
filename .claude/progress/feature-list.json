@@ -52,7 +52,7 @@
       "id": "F007",
       "description": "Shame Dashboard - Real-time financial metrics display",
       "priority": 10,
-      "status": "pending",
+      "status": "implemented",
       "tier": "mvp",
       "acceptance": "Balance, inflows/outflows, unmatched entries shown"
     },
