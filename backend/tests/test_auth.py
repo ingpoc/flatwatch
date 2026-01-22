@@ -1,7 +1,9 @@
 # Tests for authentication endpoints
 import pytest
 import os
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
+import httpx
 
 from app.main import app
 from app.database import init_db, get_db_path
@@ -116,3 +118,28 @@ def test_verify_token_valid(client):
     assert response.status_code == 200
     data = response.json()
     assert data["valid"] is True
+
+
+# SSO Session Validation Tests
+def test_sso_validate_no_cookie(client):
+    """Test SSO validation with no cookie."""
+    response = client.get("/api/auth/validate")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["valid"] is False
+    assert data["user"] is None
+
+
+def test_sso_validate_with_cookie_returns_200(client):
+    """Test SSO validation endpoint returns 200 with cookie."""
+    # Note: Actual SSO validation will fail in tests without real identity provider
+    # This test verifies the endpoint structure and error handling
+    response = client.get(
+        "/api/auth/validate",
+        headers={"Cookie": "session_id=test123"}
+    )
+    # Should return 200 (error handling returns valid=False instead of 500)
+    assert response.status_code == 200
+    data = response.json()
+    # When identity provider is unreachable, returns valid=False
+    assert "valid" in data

@@ -1,5 +1,6 @@
 # Database configuration
 from pathlib import Path
+import os
 
 # Data directory
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -12,3 +13,6 @@ DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 # API settings
 API_TITLE = "FlatWatch API"
 API_VERSION = "0.1.0"
+
+# SSO Identity Provider
+IDENTITY_URL = os.getenv("IDENTITY_URL", "https://aadharcha.in")

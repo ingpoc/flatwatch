@@ -1,16 +1,19 @@
 # Authentication router for FlatWatch
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 
 from ..auth import (
     Token,
     LoginRequest,
     SignupRequest,
     User,
+    SSOValidationResponse,
     create_access_token,
     authenticate_user,
     create_user,
     get_current_user,
+    validate_sso_session,
 )
 from ..audit import AuditAction, log_action
 
@@ -101,3 +104,41 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             detail="Invalid token",
         )
     return {"valid": True, "user": user}
+
+
+@router.get("/validate", response_model=SSOValidationResponse)
+async def validate_sso(
+    request: Request,
+    cookie: Optional[str] = Header(None, alias="Cookie"),
+):
+    """
+    SSO session validation endpoint (proxy to identity provider).
+
+    Validates SSO session by forwarding cookies to the identity provider.
+    Used by frontend to check if user is authenticated via SSO.
+
+    Args:
+        request: FastAPI request object
+        cookie: Raw Cookie header from client
+
+    Returns:
+        SSOValidationResponse with user data if session is valid
+    """
+    if not cookie:
+        return SSOValidationResponse(valid=False)
+
+    # Forward the entire cookie string to the SSO provider
+    result = await validate_sso_session(cookie)
+
+    if result.valid:
+        # Audit log successful validation
+        # (Note: user.id is from SSO provider, may differ from local DB)
+        from ..audit import log_action, AuditAction
+        log_action(
+            AuditAction.LOGIN,
+            int(result.user.id) if result.user.id.isdigit() else 0,
+            f"SSO session validated: {result.user.email}",
+            ip_address=request.client.host if request.client else None,
+        )
+
+    return result
