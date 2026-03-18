@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator
 
 from .database import get_db_connection
+from .runtime_config import resolve_runtime_policy
 
 try:
     from claude_agent_sdk import ClaudeAgentOptions, query
@@ -65,77 +66,46 @@ def _build_context_snapshot() -> dict[str, Any]:
     }
 
 
-def _fallback_response(prompt: str, context: dict[str, Any], session: dict[str, Any]) -> str:
-    query_lower = prompt.lower()
-    summary = context["summary"]
-
-    if "balance" in query_lower:
-        return (
-            f"Current balance is ₹{summary['balance']:.0f}. "
-            f"Inflow is ₹{summary['inflow']:.0f}, outflow is ₹{summary['outflow']:.0f}."
-        )
-    if "unverified" in query_lower:
-        return f"There are {summary['unverified_count']} unverified transactions right now."
-    if "water" in query_lower:
-        recent = [
-            transaction
-            for transaction in context["recent_transactions"]
-            if "water" in (transaction.get("description") or "").lower()
-        ]
-        if recent:
-            match = recent[0]
-            return (
-                f"Latest water-related transaction: ₹{match['amount']:.0f} on "
-                f"{match['timestamp']} ({match['transaction_type']})."
-            )
-
-    capability_label = ", ".join(session["allowed_capabilities"]) or "financial summaries"
-    return (
-        f"FlatWatch agent is running in {session['mode']} mode. "
-        f"I can help with {capability_label}. "
-        f"Current balance is ₹{summary['balance']:.0f}."
-    )
-
-
-def _extract_text(message: Any) -> Optional[str]:
+def _extract_text(message: Any) -> str | None:
     result = getattr(message, "result", None)
-    if isinstance(result, str):
-        return result
+    if isinstance(result, str) and result.strip():
+        return result.strip()
 
     content = getattr(message, "content", None)
     if isinstance(content, list):
-        parts: list[str] = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                parts.append(str(block.get("text", "")))
-            else:
-                text = getattr(block, "text", None)
-                if isinstance(text, str):
-                    parts.append(text)
-        joined = "".join(parts).strip()
-        return joined or None
-
+        text_parts: list[str] = []
+        for item in content:
+            item_type = getattr(item, "type", None)
+            if item_type == "text" and isinstance(getattr(item, "text", None), str):
+                text_parts.append(item.text)
+        combined = "".join(text_parts).strip()
+        return combined or None
     return None
 
 
-def _extract_stream_text(message: Any) -> Optional[str]:
+def _extract_stream_text(message: Any) -> str | None:
     event = getattr(message, "event", None)
-    if not isinstance(event, dict):
+    if event is None or getattr(event, "type", None) != "content_block_delta":
         return None
-    if event.get("type") != "content_block_delta":
+
+    delta = getattr(event, "delta", None)
+    if delta is None or getattr(delta, "type", None) != "text_delta":
         return None
-    delta = event.get("delta", {})
-    if isinstance(delta, dict) and delta.get("type") == "text_delta":
-        text = delta.get("text")
-        return text if isinstance(text, str) else None
-    return None
+
+    text = getattr(delta, "text", None)
+    return text if isinstance(text, str) and text else None
 
 
-def _sdk_is_configured() -> bool:
-    return query is not None and ClaudeAgentOptions is not None and bool(os.getenv("ANTHROPIC_API_KEY"))
+def _extract_cost_usd(message: Any) -> float:
+    total_cost_usd = getattr(message, "total_cost_usd", None)
+    return float(total_cost_usd) if isinstance(total_cost_usd, (int, float)) else 0.0
 
 
-async def stream_agent_response(session: dict[str, Any], prompt: str) -> AsyncGenerator[dict[str, Any], None]:
+async def stream_agent_response(
+    session: dict[str, Any],
+    prompt: str,
+    runtime_snapshot: dict[str, Any],
+) -> AsyncGenerator[dict[str, Any], None]:
     yield {
         "type": "init",
         "session_id": session["session_id"],
@@ -143,40 +113,47 @@ async def stream_agent_response(session: dict[str, Any], prompt: str) -> AsyncGe
         "mode": session["mode"],
     }
 
-    if session["mode"] == "blocked":
+    if not runtime_snapshot.get("runtime_available") or session["mode"] == "blocked":
         yield {
             "type": "error",
-            "error": "Subscription required before starting an agent session.",
+            "error": runtime_snapshot.get("blocked_reason") or "Claude Agent runtime is unavailable.",
             "timestamp": _now_ms(),
         }
         return
 
-    context_snapshot = _build_context_snapshot()
-    if not _sdk_is_configured():
-        content = _fallback_response(prompt, context_snapshot, session)
-        yield {"type": "assistant_delta", "content": content, "timestamp": _now_ms()}
+    if query is None or ClaudeAgentOptions is None:
         yield {
-            "type": "result",
-            "content": content,
-            "sdk_session_id": session.get("sdk_session_id"),
+            "type": "error",
+            "error": "claude_agent_sdk is not installed in the FlatWatch backend environment.",
             "timestamp": _now_ms(),
         }
         return
 
     try:
         final_text = ""
+        total_cost_usd = 0.0
         sdk_session_id = session.get("sdk_session_id")
+        runtime_policy = resolve_runtime_policy()
+        context_snapshot = _build_context_snapshot()
         options = ClaudeAgentOptions(
+            model=runtime_snapshot["model"],
             resume=sdk_session_id or None,
+            tools=[],
             allowed_tools=[],
-            permission_mode="acceptEdits",
+            permission_mode="default",
             include_partial_messages=True,
+            cwd=os.getcwd(),
+            cli_path=runtime_policy.claude_code_executable_path,
         )
         compiled_prompt = (
-            "You are the FlatWatch portfolio agent. "
-            f"Mode: {session['mode']}. "
-            f"Allowed capabilities: {', '.join(session['allowed_capabilities']) or 'none'}. "
-            f"Context snapshot: {context_snapshot}\n\n"
+            "You are the FlatWatch portfolio agent.\n"
+            f"Mode: {session['mode']}\n"
+            f"Allowed capabilities: {', '.join(session['allowed_capabilities']) or 'none'}\n"
+            f"Trust state: {session['trust_state']}\n"
+            f"Task type: {session['task_type']}\n"
+            f"Context: {session['context']}\n"
+            f"Runtime model: {runtime_snapshot['model']}\n"
+            f"Operational snapshot: {context_snapshot}\n\n"
             f"User request: {prompt}"
         )
 
@@ -184,6 +161,8 @@ async def stream_agent_response(session: dict[str, Any], prompt: str) -> AsyncGe
             message_session_id = getattr(message, "session_id", None)
             if isinstance(message_session_id, str):
                 sdk_session_id = message_session_id
+
+            total_cost_usd = max(total_cost_usd, _extract_cost_usd(message))
 
             partial = _extract_stream_text(message)
             if partial:
@@ -197,26 +176,19 @@ async def stream_agent_response(session: dict[str, Any], prompt: str) -> AsyncGe
             if text:
                 final_text = text
 
-        final = final_text or _fallback_response(prompt, context_snapshot, session)
+        if not final_text:
+            raise RuntimeError("Claude Agent SDK returned no assistant content.")
+
         yield {
             "type": "result",
-            "content": final,
+            "content": final_text,
             "sdk_session_id": sdk_session_id,
+            "estimated_cost_usd": total_cost_usd or None,
             "timestamp": _now_ms(),
         }
     except Exception as error:  # pragma: no cover - depends on SDK runtime
-        content = _fallback_response(prompt, context_snapshot, session)
         yield {
-            "type": "tool_result",
-            "tool": "fallback_runtime",
-            "status": error.__class__.__name__,
-            "content": str(error),
-            "timestamp": _now_ms(),
-        }
-        yield {"type": "assistant_delta", "content": content, "timestamp": _now_ms()}
-        yield {
-            "type": "result",
-            "content": content,
-            "sdk_session_id": session.get("sdk_session_id"),
+            "type": "error",
+            "error": str(error),
             "timestamp": _now_ms(),
         }

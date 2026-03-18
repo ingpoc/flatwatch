@@ -186,7 +186,7 @@ interface ChatQueryResponse {
   sources?: string[];
 }
 
-export type SubscriptionStatus = 'inactive' | 'trial' | 'active' | 'past_due' | 'canceled';
+export type AgentAuthMode = 'api_key' | 'local_cli' | 'bedrock' | 'vertex' | 'azure' | 'unavailable';
 export type PortfolioTrustState =
   | 'no_identity'
   | 'identity_present_unverified'
@@ -202,12 +202,15 @@ export interface UsageSnapshot {
   estimated_cost_usd: number;
 }
 
-export interface EntitlementSnapshot {
+export interface AgentRuntimeSnapshot {
   app_id: 'flatwatch' | 'ondc-buyer' | 'ondc-seller';
-  subscription_status: SubscriptionStatus;
-  plan_tier: string;
+  auth_mode: AgentAuthMode;
+  model: string;
+  runtime_available: boolean;
   agent_access: boolean;
+  trust_state: PortfolioTrustState;
   trust_required_for_write: boolean;
+  mode: 'blocked' | 'read_only' | 'full';
   usage: UsageSnapshot;
   allowed_capabilities: string[];
   blocked_reason: string | null;
@@ -230,7 +233,7 @@ export type AgentStreamEvent =
   | { type: 'assistant_delta'; content: string; timestamp: number }
   | { type: 'tool_call'; tool: string; status?: string; timestamp: number }
   | { type: 'tool_result'; tool: string; status?: string; content?: string; timestamp: number }
-  | { type: 'result'; content: string; timestamp: number; sdk_session_id?: string | null }
+  | { type: 'result'; content: string; timestamp: number; sdk_session_id?: string | null; estimated_cost_usd?: number }
   | { type: 'error'; error: string; timestamp: number }
   | { type: 'usage'; usage: UsageSnapshot; timestamp: number };
 
@@ -288,8 +291,8 @@ export const chatApi = {
 };
 
 export const agentApi = {
-  getEntitlement: async (appId: 'flatwatch' | 'ondc-buyer' | 'ondc-seller', walletAddress?: string | null) => {
-    return apiCall<EntitlementSnapshot>(`/api/entitlements/me?app=${appId}`, {
+  getRuntime: async (appId: 'flatwatch' | 'ondc-buyer' | 'ondc-seller', walletAddress?: string | null) => {
+    return apiCall<AgentRuntimeSnapshot>(`/api/agent/runtime?app=${appId}`, {
       headers: walletAddress ? { 'X-Wallet-Address': walletAddress } : undefined,
     });
   },

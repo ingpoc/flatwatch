@@ -6,7 +6,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { Alert, Badge, Button, Card, ChatLayout, Textarea } from '@/lib/portfolio-ui';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
-import { agentApi, type AgentSessionSummary, type EntitlementSnapshot, type UsageSnapshot } from '@/lib/api';
+import { agentApi, type AgentRuntimeSnapshot, type AgentSessionSummary, type UsageSnapshot } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTrustState } from '@/lib/useTrustState';
 
@@ -17,12 +17,15 @@ interface RenderMessage {
   content: string;
 }
 
-const DEFAULT_ENTITLEMENT: EntitlementSnapshot = {
+const DEFAULT_RUNTIME: AgentRuntimeSnapshot = {
   app_id: 'flatwatch',
-  subscription_status: 'inactive',
-  plan_tier: 'free',
+  auth_mode: 'unavailable',
+  model: 'claude-haiku-4-5-20251001',
+  runtime_available: false,
   agent_access: false,
+  trust_state: 'no_identity',
   trust_required_for_write: true,
+  mode: 'blocked',
   usage: {
     requests_used: 0,
     requests_limit: 0,
@@ -50,7 +53,9 @@ function setStoredSessionId(sessionId: string) {
 function UsageBadge({ usage }: { usage: UsageSnapshot }) {
   return (
     <Badge tone="info">
-      Usage {usage.requests_used}/{usage.requests_limit}
+      {usage.requests_limit > 0
+        ? `Usage ${usage.requests_used}/${usage.requests_limit}`
+        : `${usage.requests_used} requests this period`}
     </Badge>
   );
 }
@@ -65,8 +70,8 @@ function ChatContent() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
-  const [entitlement, setEntitlement] = useState<EntitlementSnapshot>(DEFAULT_ENTITLEMENT);
-  const [entitlementLoading, setEntitlementLoading] = useState(false);
+  const [runtime, setRuntime] = useState<AgentRuntimeSnapshot>(DEFAULT_RUNTIME);
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [session, setSession] = useState<AgentSessionSummary | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +81,7 @@ function ChatContent() {
 
   useEffect(() => {
     if (!user) {
-      setEntitlement(DEFAULT_ENTITLEMENT);
+      setRuntime(DEFAULT_RUNTIME);
       setSession(null);
       return;
     }
@@ -84,75 +89,62 @@ function ChatContent() {
     let cancelled = false;
     const run = async () => {
       try {
-        setEntitlementLoading(true);
-        const next = await agentApi.getEntitlement('flatwatch', walletAddress);
+        setRuntimeLoading(true);
+        setError(null);
+        const next = await agentApi.getRuntime('flatwatch', walletAddress);
         if (!cancelled) {
-          setEntitlement(next);
+          setRuntime(next);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load entitlement.');
-          setEntitlement(DEFAULT_ENTITLEMENT);
+          setRuntime(DEFAULT_RUNTIME);
+          setError(err instanceof Error ? err.message : 'Failed to load agent runtime.');
         }
       } finally {
         if (!cancelled) {
-          setEntitlementLoading(false);
+          setRuntimeLoading(false);
         }
       }
     };
 
     void run();
+
     return () => {
       cancelled = true;
     };
   }, [user, walletAddress]);
 
-  const suggestedQueries = useMemo(
-    () => [
-      'Show me all water bills from last month',
-      'What is the total maintenance collected?',
-      'List all unverified transactions above ₹5000',
-      'Summarize the latest pending challenges',
-    ],
-    [],
-  );
-
-  const ensureSession = async () => {
-    if (session) {
-      return session;
-    }
-
-    const storedSessionId = getStoredSessionId();
-    const next = await agentApi.createSession(
-      'flatwatch',
-      {
-        task_type: 'chat_guard',
-        context: { surface: 'chat', product: 'flatwatch' },
-        resume_session_id: storedSessionId || undefined,
-      },
-      walletAddress,
-    );
-    setSession(next);
-    setStoredSessionId(next.session_id);
-    return next;
-  };
-
-  const handleSend = async (preset?: string) => {
-    const message = (preset ?? input).trim();
-    if (!message || sending || !user || !entitlement.agent_access) {
+  const handleSend = async (nextInput = input) => {
+    const message = nextInput.trim();
+    if (!message || sending || !user || !runtime.agent_access) {
       return;
     }
 
-    setMessages((current) => [...current, { role: 'user', content: message }]);
+    setError(null);
     setInput('');
     setSending(true);
-    setError(null);
-    setStreamingText('');
+    setMessages((current) => [...current, { role: 'user', content: message }]);
 
     try {
-      const currentSession = await ensureSession();
+      const currentSession =
+        session ??
+        (await agentApi.createSession(
+          'flatwatch',
+          {
+            task_type: 'trust_audit_assistant',
+            context: { trust_state: trust.state, wallet_address: walletAddress },
+            resume_session_id: getStoredSessionId() || undefined,
+          },
+          walletAddress,
+        ));
+
+      if (!session) {
+        setSession(currentSession);
+        setStoredSessionId(currentSession.session_id);
+      }
+
       let finalResponse = '';
-      let latestUsage = entitlement.usage;
+      let latestUsage = runtime.usage;
 
       await agentApi.streamMessage(
         'flatwatch',
@@ -177,7 +169,7 @@ function ChatContent() {
       if (finalResponse) {
         setMessages((current) => [...current, { role: 'assistant', content: finalResponse }]);
       }
-      setEntitlement((current) => ({
+      setRuntime((current) => ({
         ...current,
         usage: latestUsage,
       }));
@@ -189,30 +181,39 @@ function ChatContent() {
     }
   };
 
+  const suggestedQueries = useMemo(
+    () => [
+      'Summarize this month’s inflows and outflows.',
+      'Which receipts still need review?',
+      'Show the latest resident challenges and likely next actions.',
+      'Explain the by-law basis for disputed maintenance charges.',
+    ],
+    [],
+  );
+
   return (
-    <PageLayout title="Chat Guard" description="Subscription-gated agent support for financial summaries and challenge evidence">
+    <PageLayout title="Chat Guard" description="Claude-powered financial summaries, evidence review, and trust-aware guidance">
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          <Badge tone={entitlement.agent_access ? 'success' : 'warning'}>
-            Plan {entitlement.plan_tier || 'free'}
-          </Badge>
+          <Badge tone={runtime.runtime_available ? 'success' : 'warning'}>Runtime {runtime.auth_mode}</Badge>
           <Badge tone={trust.state === 'verified' ? 'success' : 'warning'}>
             {trust.state === 'verified' ? 'Verified write path enabled' : 'Read-only trust mode'}
           </Badge>
-          <UsageBadge usage={entitlement.usage} />
+          <Badge tone="info">{runtime.model}</Badge>
+          <UsageBadge usage={runtime.usage} />
         </div>
 
         {error ? <Alert title="Agent request failed" description={error} tone="error" /> : null}
 
-        {!entitlement.agent_access && user ? (
+        {!runtime.runtime_available && user ? (
           <Alert
-            title="Subscription required"
-            description={entitlement.blocked_reason ?? 'Active subscription required before starting the FlatWatch agent.'}
+            title="Claude runtime unavailable"
+            description={runtime.blocked_reason ?? 'Configure supported Claude Agent SDK auth or use the local Claude CLI dev adapter on localhost.'}
             tone="warning"
           />
         ) : null}
 
-        {entitlement.agent_access && trust.state !== 'verified' ? (
+        {runtime.agent_access && trust.state !== 'verified' ? (
           <Alert
             title="Trust verification limits write actions"
             description={trust.reason ?? 'You can use informational agent flows, but evidence-affecting actions stay read-only until AadhaarChain verification completes.'}
@@ -238,7 +239,7 @@ function ChatContent() {
                   type="button"
                   variant="secondary"
                   onClick={() => void handleSend(query)}
-                  disabled={!entitlement.agent_access || sending || entitlementLoading}
+                  disabled={!runtime.agent_access || sending || runtimeLoading}
                 >
                   {query}
                 </Button>
@@ -264,7 +265,7 @@ function ChatContent() {
                     }
                   }}
                   placeholder="Ask about transactions, receipts, challenges, or compliance..."
-                  disabled={!entitlement.agent_access || sending || entitlementLoading}
+                  disabled={!runtime.agent_access || sending || runtimeLoading}
                   rows={2}
                   className="min-h-[88px] flex-1"
                 />
@@ -272,14 +273,14 @@ function ChatContent() {
                   type="button"
                   size="icon"
                   onClick={() => void handleSend()}
-                  disabled={!input.trim() || !entitlement.agent_access || sending || entitlementLoading}
+                  disabled={!input.trim() || !runtime.agent_access || sending || runtimeLoading}
                   aria-label="Send message"
                 >
                   <ArrowUp className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-center text-xs text-[var(--ui-text-muted)]">
-                Usage is tied to your subscription entitlement. Verify important financial actions independently.
+              <p className="text-xs text-[var(--ui-text-secondary)]">
+                Trust status controls elevated actions independently.
               </p>
             </div>
           }

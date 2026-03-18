@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional, TypedDict
 
+from fastapi import Request
 from pydantic import BaseModel
 
-from .auth import User
-from .database import get_db_connection
+from .runtime_config import AgentAuthMode, resolve_runtime_policy
 
 AppId = Literal["flatwatch", "ondc-buyer", "ondc-seller"]
 PortfolioTrustState = Literal[
@@ -16,7 +18,6 @@ PortfolioTrustState = Literal[
     "manual_review",
     "revoked_or_blocked",
 ]
-SubscriptionStatus = Literal["inactive", "trial", "active", "past_due", "canceled"]
 SessionMode = Literal["blocked", "read_only", "full"]
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
@@ -31,12 +32,15 @@ class UsageSnapshot(BaseModel):
     estimated_cost_usd: float
 
 
-class EntitlementSnapshot(BaseModel):
+class AgentRuntimeSnapshot(BaseModel):
     app_id: AppId
-    subscription_status: SubscriptionStatus
-    plan_tier: str
+    auth_mode: AgentAuthMode
+    model: str
+    runtime_available: bool
     agent_access: bool
+    trust_state: PortfolioTrustState
     trust_required_for_write: bool
+    mode: SessionMode
     usage: UsageSnapshot
     allowed_capabilities: list[str]
     blocked_reason: Optional[str] = None
@@ -65,16 +69,36 @@ class AgentMessageRequest(BaseModel):
     message: str
 
 
-class StoredEntitlementRecord(TypedDict):
+class StoredUsageRecord(TypedDict):
     subject_id: str
     app_id: AppId
-    subscription_status: SubscriptionStatus
-    plan_tier: str
-    requests_limit: int
     requests_used: int
+    requests_limit: int
     period_start: str
     period_end: str
     estimated_cost_usd: float
+
+
+class StoredSessionRecord(TypedDict):
+    session_id: str
+    app_id: AppId
+    subject_id: str
+    wallet_address: Optional[str]
+    sdk_session_id: Optional[str]
+    trust_state: PortfolioTrustState
+    mode: SessionMode
+    allowed_capabilities: list[str]
+    task_type: str
+    context: dict[str, Any]
+    messages: list[dict[str, Any]]
+    created_at: str
+    updated_at: str
+
+
+class ControlPlaneStore(TypedDict, total=False):
+    usage: list[StoredUsageRecord]
+    sessions: list[StoredSessionRecord]
+    entitlements: list[dict[str, Any]]
 
 
 APP_CAPABILITIES: dict[AppId, dict[str, list[str]]] = {
@@ -83,8 +107,8 @@ APP_CAPABILITIES: dict[AppId, dict[str, list[str]]] = {
         "write": ["receipt_process_metadata", "challenge_create", "challenge_resolve"],
     },
     "ondc-buyer": {
-        "read": ["search", "product_detail", "order_status", "trust_checkout_guidance"],
-        "write": ["cart_state", "checkout_mutation"],
+        "read": ["search", "product_detail", "cart_state", "order_status", "trust_checkout_guidance"],
+        "write": ["checkout_mutation"],
     },
     "ondc-seller": {
         "read": ["catalog_read", "listing_quality_analysis", "order_status", "seller_config_guidance"],
@@ -93,147 +117,135 @@ APP_CAPABILITIES: dict[AppId, dict[str, list[str]]] = {
 }
 
 
-def _seed_entitlements(now: datetime) -> list[StoredEntitlementRecord]:
-    period_end = (now + timedelta(days=30)).isoformat()
-    period_start = now.isoformat()
-    return [
-        {
-            "subject_id": "resident@flatwatch.test",
-            "app_id": "flatwatch",
-            "subscription_status": "active",
-            "plan_tier": "pilot",
-            "requests_limit": 100,
-            "requests_used": 0,
-            "period_start": period_start,
-            "period_end": period_end,
-            "estimated_cost_usd": 0.0,
-        },
-        {
-            "subject_id": "admin@flatwatch.test",
-            "app_id": "flatwatch",
-            "subscription_status": "active",
-            "plan_tier": "pilot",
-            "requests_limit": 100,
-            "requests_used": 0,
-            "period_start": period_start,
-            "period_end": period_end,
-            "estimated_cost_usd": 0.0,
-        },
-    ]
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def _ensure_store() -> None:
-    STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if STORE_PATH.exists():
-        return
-
-    now = datetime.now(timezone.utc)
-    STORE_PATH.write_text(json.dumps({"entitlements": _seed_entitlements(now), "sessions": []}, indent=2))
+def _default_period_end() -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
 
 
-def _read_store() -> dict[str, Any]:
-    _ensure_store()
-    return json.loads(STORE_PATH.read_text())
-
-
-def _write_store(store: dict[str, Any]) -> None:
-    _ensure_store()
-    STORE_PATH.write_text(json.dumps(store, indent=2))
-
-
-def _default_entitlement(subject_id: str, app_id: AppId) -> StoredEntitlementRecord:
-    now = datetime.now(timezone.utc)
+def _default_usage(subject_id: str, app_id: AppId) -> StoredUsageRecord:
     return {
         "subject_id": subject_id,
         "app_id": app_id,
-        "subscription_status": "inactive",
-        "plan_tier": "free",
-        "requests_limit": 0,
         "requests_used": 0,
-        "period_start": now.isoformat(),
-        "period_end": (now + timedelta(days=30)).isoformat(),
+        "requests_limit": 0,
+        "period_start": _now_iso(),
+        "period_end": _default_period_end(),
         "estimated_cost_usd": 0.0,
     }
 
 
-def get_or_create_entitlement(subject_id: str, app_id: AppId) -> StoredEntitlementRecord:
+def _ensure_store() -> None:
+    STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not STORE_PATH.exists():
+        STORE_PATH.write_text(json.dumps({"usage": [], "sessions": []}, indent=2))
+
+
+def _normalize_usage(record: dict[str, Any]) -> Optional[StoredUsageRecord]:
+    subject_id = record.get("subject_id")
+    app_id = record.get("app_id")
+    if not isinstance(subject_id, str) or app_id not in {"flatwatch", "ondc-buyer", "ondc-seller"}:
+        return None
+
+    return {
+        "subject_id": subject_id,
+        "app_id": app_id,
+        "requests_used": int(record.get("requests_used", 0) or 0),
+        "requests_limit": int(record.get("requests_limit", 0) or 0),
+        "period_start": record.get("period_start") or _now_iso(),
+        "period_end": record.get("period_end") or _default_period_end(),
+        "estimated_cost_usd": float(record.get("estimated_cost_usd", 0.0) or 0.0),
+    }
+
+
+def _read_store() -> ControlPlaneStore:
+    _ensure_store()
+    raw = json.loads(STORE_PATH.read_text())
+    usage_source = raw.get("usage") or raw.get("entitlements") or []
+    usage = [
+        normalized
+        for normalized in (_normalize_usage(record) for record in usage_source if isinstance(record, dict))
+        if normalized is not None
+    ]
+    sessions = raw.get("sessions") if isinstance(raw.get("sessions"), list) else []
+    return {
+        "usage": usage,
+        "sessions": sessions,
+    }
+
+
+def _write_store(store: ControlPlaneStore) -> None:
+    _ensure_store()
+    STORE_PATH.write_text(json.dumps({"usage": store.get("usage", []), "sessions": store.get("sessions", [])}, indent=2))
+
+
+def get_or_create_usage(subject_id: str, app_id: AppId) -> StoredUsageRecord:
     store = _read_store()
-    for record in store["entitlements"]:
+    for record in store.get("usage", []):
         if record["subject_id"] == subject_id and record["app_id"] == app_id:
             return record
 
-    record = _default_entitlement(subject_id, app_id)
-    store["entitlements"].append(record)
+    record = _default_usage(subject_id, app_id)
+    store.setdefault("usage", []).append(record)
     _write_store(store)
     return record
 
 
-def _subscription_blocked_reason(status: SubscriptionStatus) -> Optional[str]:
-    if status == "past_due":
-        return "Subscription payment is past due."
-    if status == "canceled":
-        return "Subscription was canceled."
-    if status == "inactive":
-        return "Active subscription required."
-    return None
-
-
-def _mode_for(subscription_status: SubscriptionStatus, trust_state: PortfolioTrustState) -> SessionMode:
-    if subscription_status not in {"active", "trial"}:
-        return "blocked"
-    if trust_state == "verified":
-        return "full"
-    return "read_only"
-
-
-def _allowed_capabilities(app_id: AppId, mode: SessionMode) -> list[str]:
-    if mode == "blocked":
-        return []
-    if mode == "read_only":
-        return APP_CAPABILITIES[app_id]["read"]
-    return APP_CAPABILITIES[app_id]["read"] + APP_CAPABILITIES[app_id]["write"]
-
-
-def build_entitlement_snapshot(
+def build_runtime_snapshot(
     subject_id: str,
     app_id: AppId,
     trust_state: PortfolioTrustState,
     trust_reason: Optional[str],
-) -> EntitlementSnapshot:
-    record = get_or_create_entitlement(subject_id, app_id)
-    mode = _mode_for(record["subscription_status"], trust_state)
-    usage_exhausted = record["requests_limit"] > 0 and record["requests_used"] >= record["requests_limit"]
-    blocked_reason = _subscription_blocked_reason(record["subscription_status"])
+    request: Optional[Request] = None,
+) -> AgentRuntimeSnapshot:
+    usage = get_or_create_usage(subject_id, app_id)
+    runtime_policy = resolve_runtime_policy(request)
+    if not runtime_policy.runtime_available:
+        mode: SessionMode = "blocked"
+    elif trust_state == "verified":
+        mode = "full"
+    else:
+        mode = "read_only"
 
-    if blocked_reason is None and mode == "read_only" and trust_state != "verified":
-        blocked_reason = trust_reason or "Trust verification required for write actions."
+    blocked_reason = runtime_policy.blocked_reason
+    if blocked_reason is None and mode == "read_only":
+        blocked_reason = trust_reason or "Trust verification is still required for higher-trust write actions."
 
-    if usage_exhausted:
-        blocked_reason = "Usage limit exhausted for current billing period."
+    if mode == "blocked":
+        allowed_capabilities: list[str] = []
+    elif mode == "read_only":
+        allowed_capabilities = APP_CAPABILITIES[app_id]["read"]
+    else:
+        allowed_capabilities = APP_CAPABILITIES[app_id]["read"] + APP_CAPABILITIES[app_id]["write"]
 
-    return EntitlementSnapshot(
+    return AgentRuntimeSnapshot(
         app_id=app_id,
-        subscription_status=record["subscription_status"],
-        plan_tier=record["plan_tier"],
-        agent_access=mode != "blocked" and not usage_exhausted,
+        auth_mode=runtime_policy.auth_mode,
+        model=runtime_policy.model,
+        runtime_available=runtime_policy.runtime_available,
+        agent_access=runtime_policy.runtime_available,
+        trust_state=trust_state,
         trust_required_for_write=True,
+        mode=mode,
         usage=UsageSnapshot(
-            requests_used=record["requests_used"],
-            requests_limit=record["requests_limit"],
-            period_start=record["period_start"],
-            period_end=record["period_end"],
-            estimated_cost_usd=record["estimated_cost_usd"],
+            requests_used=usage["requests_used"],
+            requests_limit=usage["requests_limit"],
+            period_start=usage["period_start"],
+            period_end=usage["period_end"],
+            estimated_cost_usd=usage["estimated_cost_usd"],
         ),
-        allowed_capabilities=_allowed_capabilities(app_id, mode),
+        allowed_capabilities=allowed_capabilities,
         blocked_reason=blocked_reason,
     )
 
 
 def record_usage(subject_id: str, app_id: AppId, incremental_cost_usd: float = 0.0) -> UsageSnapshot:
     store = _read_store()
-    updated: Optional[StoredEntitlementRecord] = None
+    updated: Optional[StoredUsageRecord] = None
 
-    for record in store["entitlements"]:
+    for record in store.get("usage", []):
         if record["subject_id"] == subject_id and record["app_id"] == app_id:
             record["requests_used"] += 1
             record["estimated_cost_usd"] = round(record["estimated_cost_usd"] + incremental_cost_usd, 6)
@@ -241,10 +253,10 @@ def record_usage(subject_id: str, app_id: AppId, incremental_cost_usd: float = 0
             break
 
     if updated is None:
-        updated = _default_entitlement(subject_id, app_id)
+        updated = _default_usage(subject_id, app_id)
         updated["requests_used"] = 1
         updated["estimated_cost_usd"] = round(incremental_cost_usd, 6)
-        store["entitlements"].append(updated)
+        store.setdefault("usage", []).append(updated)
 
     _write_store(store)
     return UsageSnapshot(
@@ -260,7 +272,6 @@ def save_agent_session(
     *,
     session_id: str,
     app_id: AppId,
-    user: User,
     subject_id: str,
     wallet_address: Optional[str],
     sdk_session_id: Optional[str],
@@ -271,77 +282,66 @@ def save_agent_session(
     context: dict[str, Any],
     messages: list[dict[str, Any]],
 ) -> AgentSessionSummary:
-    conn = get_db_connection()
-    now = datetime.now(timezone.utc).isoformat()
-    existing = conn.execute(
-        "SELECT created_at FROM agent_sessions WHERE session_id = ?",
-        (session_id,),
-    ).fetchone()
-    created_at = existing["created_at"] if existing else now
-
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO agent_sessions (
-            session_id, app_id, user_id, subject_id, wallet_address, sdk_session_id,
-            trust_state, mode, allowed_capabilities, task_type, context_json, messages_json,
-            created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+    store = _read_store()
+    timestamp = _now_iso()
+    existing = next(
         (
-            session_id,
-            app_id,
-            user.id,
-            subject_id,
-            wallet_address,
-            sdk_session_id,
-            trust_state,
-            mode,
-            json.dumps(allowed_capabilities),
-            task_type,
-            json.dumps(context),
-            json.dumps(messages),
-            created_at,
-            now,
+            item
+            for item in store.get("sessions", [])
+            if item["session_id"] == session_id and item["app_id"] == app_id and item["subject_id"] == subject_id
         ),
+        None,
     )
-    conn.commit()
-    conn.close()
 
+    if existing is None:
+        existing = {
+            "session_id": session_id,
+            "app_id": app_id,
+            "subject_id": subject_id,
+            "wallet_address": wallet_address,
+            "sdk_session_id": sdk_session_id,
+            "trust_state": trust_state,
+            "mode": mode,
+            "allowed_capabilities": allowed_capabilities,
+            "task_type": task_type,
+            "context": context,
+            "messages": messages,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        store.setdefault("sessions", []).append(existing)
+    else:
+        existing.update(
+            {
+                "wallet_address": wallet_address,
+                "sdk_session_id": sdk_session_id,
+                "trust_state": trust_state,
+                "mode": mode,
+                "allowed_capabilities": allowed_capabilities,
+                "task_type": task_type,
+                "context": context,
+                "messages": messages,
+                "updated_at": timestamp,
+            }
+        )
+
+    _write_store(store)
     return AgentSessionSummary(
         app_id=app_id,
-        session_id=session_id,
-        sdk_session_id=sdk_session_id,
-        subject_id=subject_id,
-        trust_state=trust_state,
-        mode=mode,
-        allowed_capabilities=allowed_capabilities,
-        created_at=created_at,
-        updated_at=now,
+        session_id=existing["session_id"],
+        sdk_session_id=existing.get("sdk_session_id"),
+        subject_id=existing["subject_id"],
+        trust_state=existing["trust_state"],
+        mode=existing["mode"],
+        allowed_capabilities=existing["allowed_capabilities"],
+        created_at=existing["created_at"],
+        updated_at=existing["updated_at"],
     )
 
 
-def get_agent_session(session_id: str, user_id: int) -> Optional[dict[str, Any]]:
-    conn = get_db_connection()
-    row = conn.execute(
-        "SELECT * FROM agent_sessions WHERE session_id = ? AND user_id = ?",
-        (session_id, user_id),
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return {
-        "session_id": row["session_id"],
-        "app_id": row["app_id"],
-        "user_id": row["user_id"],
-        "subject_id": row["subject_id"],
-        "wallet_address": row["wallet_address"],
-        "sdk_session_id": row["sdk_session_id"],
-        "trust_state": row["trust_state"],
-        "mode": row["mode"],
-        "allowed_capabilities": json.loads(row["allowed_capabilities"]),
-        "task_type": row["task_type"],
-        "context": json.loads(row["context_json"]),
-        "messages": json.loads(row["messages_json"]),
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-    }
+def get_agent_session(session_id: str, subject_id: str) -> Optional[StoredSessionRecord]:
+    store = _read_store()
+    for session in store.get("sessions", []):
+        if session["session_id"] == session_id and session["subject_id"] == subject_id:
+            return session
+    return None
