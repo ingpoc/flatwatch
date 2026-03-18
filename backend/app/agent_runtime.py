@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 
 from .database import get_db
 from .runtime_config import resolve_runtime_policy
+
+logger = logging.getLogger(__name__)
 
 try:
     from claude_agent_sdk import ClaudeAgentOptions, query
@@ -188,9 +191,10 @@ async def stream_agent_response(
             "estimated_cost_usd": total_cost_usd or None,
             "timestamp": _now_ms(),
         }
-    except Exception as error:  # pragma: no cover - depends on SDK runtime
+    except Exception:  # pragma: no cover - depends on SDK runtime
+        logger.exception("FlatWatch agent runtime failed.")
         yield {
             "type": "error",
-            "error": str(error),
+            "error": "FlatWatch agent runtime failed to process the request.",
             "timestamp": _now_ms(),
         }
