@@ -1,34 +1,33 @@
 'use client';
 
+import { Button, TrustBanner } from '@/lib/portfolio-ui';
 import type { PortfolioTrustState } from '@/lib/trust';
 
 const IDENTITY_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://localhost:3000';
 
-const STATE_META: Record<PortfolioTrustState, { label: string; background: string; color: string }> = {
+const STATE_META: Record<
+  PortfolioTrustState,
+  { title: string; tone: 'neutral' | 'warning' | 'success' | 'error' }
+> = {
   no_identity: {
-    label: 'No identity',
-    background: 'rgb(245,245,245)',
-    color: '#666',
+    title: 'AadhaarChain trust: No identity',
+    tone: 'neutral',
   },
   identity_present_unverified: {
-    label: 'Unverified',
-    background: 'rgb(255,243,224)',
-    color: 'rgb(194,91,18)',
+    title: 'AadhaarChain trust: Unverified',
+    tone: 'warning',
   },
   verified: {
-    label: 'Verified',
-    background: 'rgb(236,253,243)',
-    color: 'rgb(22,101,52)',
+    title: 'AadhaarChain trust: Verified',
+    tone: 'success',
   },
   manual_review: {
-    label: 'Manual review',
-    background: 'rgb(254,243,199)',
-    color: 'rgb(146,64,14)',
+    title: 'AadhaarChain trust: Manual review',
+    tone: 'warning',
   },
   revoked_or_blocked: {
-    label: 'Blocked',
-    background: 'rgb(254,242,242)',
-    color: 'rgb(185,28,28)',
+    title: 'AadhaarChain trust: Blocked',
+    tone: 'error',
   },
 };
 
@@ -49,16 +48,18 @@ export function TrustPanel({
 }) {
   if (loading) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-        Loading AadhaarChain trust state…
-      </div>
+      <TrustBanner
+        title="Loading AadhaarChain trust"
+        description="Syncing the wallet-linked trust record before enabling evidence and challenge actions."
+        tone="neutral"
+      />
     );
   }
 
   const meta = STATE_META[state];
   const message =
     !walletConnected
-      ? 'Connect the same Solflare wallet you use in AadhaarChain with the wallet button above before using trust-gated evidence or challenge flows.'
+      ? 'Connect the same Solflare wallet you use in AadhaarChain before using trust-gated evidence or challenge flows.'
       : error ||
         reason ||
         ({
@@ -70,31 +71,17 @@ export function TrustPanel({
         }[state]);
 
   return (
-    <div
-      className="rounded-3xl p-5"
-      style={{
-        backgroundColor: meta.background,
-        color: meta.color,
-        border: `1px solid ${meta.color}22`,
-      }}
-    >
-      <div className="flex items-center gap-2 text-sm font-semibold">
-        <span
-          className="inline-block h-2 w-2 rounded-full"
-          style={{ backgroundColor: meta.color }}
-        />
-        AadhaarChain trust: {meta.label}
-      </div>
-      <p className="mt-2 text-sm">{message}</p>
-      {actionLabel ? (
-        <a
-          href={`${IDENTITY_URL}/dashboard`}
-          className="mt-3 inline-flex text-sm underline"
-          style={{ color: meta.color }}
-        >
-          {actionLabel}
-        </a>
-      ) : null}
-    </div>
+    <TrustBanner
+      title={meta.title}
+      description={message}
+      tone={meta.tone}
+      action={
+        actionLabel ? (
+          <Button type="button" variant={state === 'verified' ? 'secondary' : 'default'} onClick={() => window.open(IDENTITY_URL, '_blank', 'noopener,noreferrer')}>
+            {actionLabel}
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }

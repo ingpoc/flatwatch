@@ -66,6 +66,26 @@ def init_db() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agent_sessions (
+                session_id TEXT PRIMARY KEY,
+                app_id TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                subject_id TEXT NOT NULL,
+                wallet_address TEXT,
+                sdk_session_id TEXT,
+                trust_state TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                allowed_capabilities TEXT NOT NULL,
+                task_type TEXT NOT NULL,
+                context_json TEXT NOT NULL,
+                messages_json TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         conn.commit()
 
     # Initialize audit tables

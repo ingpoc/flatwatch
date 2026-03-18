@@ -53,8 +53,8 @@ describe('TransactionList', () => {
   })
 
   it('shows verification status indicators', () => {
-    const { container } = render(<TransactionList transactions={mockTransactions} />)
-    const indicators = container.querySelectorAll('span[class*="rounded-full"]')
-    expect(indicators.length).toBeGreaterThan(0)
+    render(<TransactionList transactions={mockTransactions} />)
+    expect(screen.getByText('Verified')).toBeInTheDocument()
+    expect(screen.getByText('Unverified')).toBeInTheDocument()
   })
 })

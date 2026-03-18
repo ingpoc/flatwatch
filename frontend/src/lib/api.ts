@@ -2,6 +2,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001';
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
 /**
  * API call wrapper with local bearer token auth
  */
@@ -9,7 +16,7 @@ async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = getAuthToken();
   if (!token) {
     window.location.href = '/';
     throw new Error('Unauthenticated - redirecting to login');
@@ -171,13 +178,160 @@ export interface ChatMessage {
   sources?: string[];
 }
 
+interface ChatQueryResponse {
+  query: string;
+  response: string;
+  session_id?: string;
+  timestamp?: string;
+  sources?: string[];
+}
+
+export type SubscriptionStatus = 'inactive' | 'trial' | 'active' | 'past_due' | 'canceled';
+export type PortfolioTrustState =
+  | 'no_identity'
+  | 'identity_present_unverified'
+  | 'verified'
+  | 'manual_review'
+  | 'revoked_or_blocked';
+
+export interface UsageSnapshot {
+  requests_used: number;
+  requests_limit: number;
+  period_start: string;
+  period_end: string;
+  estimated_cost_usd: number;
+}
+
+export interface EntitlementSnapshot {
+  app_id: 'flatwatch' | 'ondc-buyer' | 'ondc-seller';
+  subscription_status: SubscriptionStatus;
+  plan_tier: string;
+  agent_access: boolean;
+  trust_required_for_write: boolean;
+  usage: UsageSnapshot;
+  allowed_capabilities: string[];
+  blocked_reason: string | null;
+}
+
+export interface AgentSessionSummary {
+  app_id: 'flatwatch' | 'ondc-buyer' | 'ondc-seller';
+  session_id: string;
+  sdk_session_id: string | null;
+  subject_id: string;
+  trust_state: PortfolioTrustState;
+  mode: 'blocked' | 'read_only' | 'full';
+  allowed_capabilities: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type AgentStreamEvent =
+  | { type: 'init'; session_id: string; sdk_session_id: string | null; mode: AgentSessionSummary['mode'] }
+  | { type: 'assistant_delta'; content: string; timestamp: number }
+  | { type: 'tool_call'; tool: string; status?: string; timestamp: number }
+  | { type: 'tool_result'; tool: string; status?: string; content?: string; timestamp: number }
+  | { type: 'result'; content: string; timestamp: number; sdk_session_id?: string | null }
+  | { type: 'error'; error: string; timestamp: number }
+  | { type: 'usage'; usage: UsageSnapshot; timestamp: number };
+
+async function streamEventSource(
+  endpoint: string,
+  options: RequestInit,
+  onEvent: (event: AgentStreamEvent) => void
+) {
+  const response = await fetch(`${API_BASE}${endpoint}`, options);
+  if (!response.ok) {
+    throw new Error(`API call failed: ${response.statusText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.replace(/^data:\s*/, '').trim();
+      if (!data || data === '[DONE]') continue;
+      onEvent(JSON.parse(data) as AgentStreamEvent);
+    }
+  }
+}
+
 export const chatApi = {
   query: async (query: string): Promise<ChatMessage> => {
-    return apiCall<ChatMessage>('/api/chat/query', {
+    const response = await apiCall<ChatQueryResponse>('/api/chat/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     });
+
+    return {
+      role: 'assistant',
+      content: response.response ?? (response as unknown as ChatMessage).content,
+      sources: response.sources ?? (response as unknown as ChatMessage).sources,
+    };
+  },
+};
+
+export const agentApi = {
+  getEntitlement: async (appId: 'flatwatch' | 'ondc-buyer' | 'ondc-seller', walletAddress?: string | null) => {
+    return apiCall<EntitlementSnapshot>(`/api/entitlements/me?app=${appId}`, {
+      headers: walletAddress ? { 'X-Wallet-Address': walletAddress } : undefined,
+    });
+  },
+
+  createSession: async (
+    appId: 'flatwatch' | 'ondc-buyer' | 'ondc-seller',
+    payload: { task_type: string; context: Record<string, unknown>; resume_session_id?: string },
+    walletAddress?: string | null
+  ) => {
+    return apiCall<AgentSessionSummary>(`/api/agent/${appId}/sessions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  streamMessage: async (
+    appId: 'flatwatch' | 'ondc-buyer' | 'ondc-seller',
+    payload: { session_id: string; message: string },
+    onEvent: (event: AgentStreamEvent) => void,
+    walletAddress?: string | null
+  ) => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Unauthenticated - redirecting to login');
+    }
+    await streamEventSource(
+      `/api/agent/${appId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+        },
+        body: JSON.stringify(payload),
+      },
+      onEvent,
+    );
   },
 };
 

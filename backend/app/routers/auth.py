@@ -96,7 +96,7 @@ async def get_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
     return user
 
 
-@router.post("/verify")
+@router.api_route("/verify", methods=["GET", "POST"])
 async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """
     Verify Firebase token (POC stub).
