@@ -15,6 +15,11 @@ UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads" / "receipts"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def ensure_upload_dir() -> Path:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    return UPLOAD_DIR
+
+
 @router.post("/upload")
 async def upload_receipt(
     file: UploadFile = File(...),
@@ -28,7 +33,8 @@ async def upload_receipt(
     # Generate unique filename
     file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = UPLOAD_DIR / unique_filename
+    upload_dir = ensure_upload_dir()
+    file_path = upload_dir / unique_filename
 
     # Save file
     with open(file_path, "wb") as buffer:
@@ -47,8 +53,9 @@ async def upload_receipt(
 @router.get("/list")
 async def list_receipts(current_user: User = Depends(require_resident)):
     """List all uploaded receipts."""
+    upload_dir = ensure_upload_dir()
     files = []
-    for file_path in UPLOAD_DIR.iterdir():
+    for file_path in upload_dir.iterdir():
         if file_path.is_file():
             files.append({
                 "filename": file_path.name,
@@ -61,7 +68,7 @@ async def list_receipts(current_user: User = Depends(require_resident)):
 @router.get("/{filename}")
 async def get_receipt(filename: str, current_user: User = Depends(require_resident)):
     """Get receipt by filename."""
-    file_path = UPLOAD_DIR / filename
+    file_path = ensure_upload_dir() / filename
     if not file_path.exists():
         from fastapi import HTTPException, status
         raise HTTPException(status_code=404, detail="File not found")

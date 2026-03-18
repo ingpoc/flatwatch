@@ -22,6 +22,7 @@ function ChallengesContent() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedTxnId, setSelectedTxnId] = useState<number | null>(null);
   const [reason, setReason] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const canResolveChallenges = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -65,6 +66,21 @@ function ChallengesContent() {
       setError('Failed to create challenge');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSyncTransactions = async () => {
+    if (syncing) return;
+
+    setSyncing(true);
+    try {
+      setError(null);
+      await transactionsApi.sync();
+      await loadData();
+    } catch {
+      setError('Sync failed');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -127,8 +143,27 @@ function ChallengesContent() {
         </div>
       )}
 
-      {/* New Challenge Button */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+      {/* Primary actions */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '32px' }}>
+        <button
+          onClick={handleSyncTransactions}
+          disabled={syncing}
+          style={{
+            height: '48px',
+            borderRadius: '999px',
+            backgroundColor: 'rgb(238,238,238)',
+            padding: '0 24px',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: syncing ? '#999' : '#333',
+            border: 'none',
+            transition: 'all 0.2s',
+            cursor: syncing ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {syncing ? 'Syncing...' : 'Sync Transactions'}
+        </button>
+
         <button
           onClick={() => setShowNewForm(!showNewForm)}
           disabled={trust.state !== 'verified'}
@@ -165,94 +200,121 @@ function ChallengesContent() {
         <div style={{ width: '100%', borderRadius: '24px', backgroundColor: 'white', padding: '24px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 500, color: '#333', marginBottom: '24px' }}>Create New Challenge</h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Transaction</label>
-              <select
-                value={selectedTxnId || ''}
-                onChange={e => setSelectedTxnId(e.target.value ? Number(e.target.value) : null)}
+          {transactions.length === 0 ? (
+            <div style={{ borderRadius: '20px', backgroundColor: 'rgb(249,249,249)', padding: '20px' }}>
+              <p style={{ margin: 0, fontSize: '15px', color: '#333' }}>
+                No transactions are available yet. Sync transactions before creating the first challenge.
+              </p>
+              <button
+                onClick={handleSyncTransactions}
+                disabled={syncing}
+                style={{
+                  marginTop: '16px',
+                  height: '44px',
+                  borderRadius: '999px',
+                  backgroundColor: 'rgb(238,238,238)',
+                  padding: '0 20px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: syncing ? '#999' : '#333',
+                  border: 'none',
+                  transition: 'all 0.2s',
+                  cursor: syncing ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {syncing ? 'Syncing...' : 'Sync Transactions'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Transaction</label>
+                <select
+                  value={selectedTxnId || ''}
+                  onChange={e => setSelectedTxnId(e.target.value ? Number(e.target.value) : null)}
+                  style={{
+                    width: '100%',
+                    borderRadius: '999px',
+                    border: '1px solid rgb(238,238,238)',
+                    backgroundColor: 'rgb(249,249,249)',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    color: '#333',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
+                >
+                  <option value="">Select a transaction</option>
+                  {transactions.map(txn => (
+                    <option key={txn.id} value={txn.id}>
+                      {txn.description || 'No description'} - ₹{txn.amount} ({txn.transaction_type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Reason for Challenge</label>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Explain why you're disputing this transaction..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    borderRadius: '16px',
+                    border: '1px solid rgb(238,238,238)',
+                    backgroundColor: 'rgb(249,249,249)',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    color: '#333',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
+                />
+              </div>
+
+              <button
+                onClick={handleCreateChallenge}
+                disabled={trust.state !== 'verified' || !selectedTxnId || !reason.trim() || submitting}
                 style={{
                   width: '100%',
+                  height: '48px',
                   borderRadius: '999px',
-                  border: '1px solid rgb(238,238,238)',
-                  backgroundColor: 'rgb(249,249,249)',
-                  padding: '12px 16px',
                   fontSize: '14px',
-                  color: '#333',
-                  outline: 'none',
+                  fontWeight: 500,
+                  color: trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting ? 'white' : '#999',
+                  border: 'none',
+                  backgroundColor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'rgb(255,97,26)' : 'rgb(238,238,238)',
+                  boxShadow: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? '0 2px 8px rgba(255,97,26,0.3)' : 'none',
+                  cursor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'pointer' : 'not-allowed',
                   transition: 'all 0.2s'
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
-              >
-                <option value="">Select a transaction</option>
-                {transactions.map(txn => (
-                  <option key={txn.id} value={txn.id}>
-                    {txn.description || 'No description'} - ₹{txn.amount} ({txn.transaction_type})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Reason for Challenge</label>
-              <textarea
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder="Explain why you're disputing this transaction..."
-                rows={3}
-                style={{
-                  width: '100%',
-                  borderRadius: '16px',
-                  border: '1px solid rgb(238,238,238)',
-                  backgroundColor: 'rgb(249,249,249)',
-                  padding: '12px 16px',
-                  fontSize: '14px',
-                  color: '#333',
-                  outline: 'none',
-                  transition: 'all 0.2s',
-                  resize: 'vertical',
-                  fontFamily: 'inherit'
+                onMouseEnter={(e) => {
+                  if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,97,26,0.4)';
+                  }
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
-              />
+                onMouseLeave={(e) => {
+                  if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,97,26,0.3)';
+                  }
+                }}
+              >
+                {trust.state !== 'verified'
+                  ? 'Verified trust required'
+                  : submitting
+                    ? 'Submitting...'
+                    : 'Submit Challenge'}
+              </button>
             </div>
-
-            <button
-              onClick={handleCreateChallenge}
-              disabled={trust.state !== 'verified' || !selectedTxnId || !reason.trim() || submitting}
-              style={{
-                width: '100%',
-                height: '48px',
-                borderRadius: '999px',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting ? 'white' : '#999',
-                border: 'none',
-                backgroundColor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'rgb(255,97,26)' : 'rgb(238,238,238)',
-                boxShadow: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? '0 2px 8px rgba(255,97,26,0.3)' : 'none',
-                cursor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,97,26,0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,97,26,0.3)';
-                }
-              }}
-            >
-              {trust.state !== 'verified'
-                ? 'Verified trust required'
-                : submitting
-                  ? 'Submitting...'
-                  : 'Submit Challenge'}
-            </button>
-          </div>
+          )}
         </div>
       )}
 
