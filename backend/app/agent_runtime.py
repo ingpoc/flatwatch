@@ -13,9 +13,26 @@ logger = logging.getLogger(__name__)
 
 try:
     from claude_agent_sdk import ClaudeAgentOptions, query
+    from claude_agent_sdk._errors import MessageParseError
+    from claude_agent_sdk._internal import client as sdk_client
+    from claude_agent_sdk._internal import message_parser as sdk_message_parser
+    from claude_agent_sdk.types import SystemMessage
 except ImportError:  # pragma: no cover - exercised only when SDK missing
     ClaudeAgentOptions = None
     query = None
+else:  # pragma: no cover - exercised only when SDK is available
+    _original_parse_message = sdk_message_parser.parse_message
+
+    def _parse_message_with_rate_limit_support(data: dict[str, Any]):
+        try:
+            return _original_parse_message(data)
+        except MessageParseError:
+            if isinstance(data, dict) and data.get("type") == "rate_limit_event":
+                return SystemMessage(subtype="rate_limit_event", data=data)
+            raise
+
+    sdk_message_parser.parse_message = _parse_message_with_rate_limit_support
+    sdk_client.parse_message = _parse_message_with_rate_limit_support
 
 
 def _now_ms() -> int:

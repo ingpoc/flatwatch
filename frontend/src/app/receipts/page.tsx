@@ -63,8 +63,19 @@ function ReceiptsContent() {
     }
 
     try {
-      await receiptsApi.process(filename);
-      await loadReceipts();
+      const processedReceipt = await receiptsApi.process(filename);
+      setReceipts((current) =>
+        current.map((receipt) =>
+          receipt.filename === filename
+            ? {
+                ...receipt,
+                ...processedReceipt,
+                filename: receipt.filename,
+                upload_date: receipt.upload_date,
+              }
+            : receipt
+        )
+      );
     } catch {
       setError('OCR processing failed');
     }

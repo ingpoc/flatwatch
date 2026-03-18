@@ -3,7 +3,7 @@
 import { Button, TrustBanner } from '@/lib/portfolio-ui';
 import type { PortfolioTrustState } from '@/lib/trust';
 
-const IDENTITY_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://localhost:3000';
+const IDENTITY_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://127.0.0.1:3000';
 
 const STATE_META: Record<
   PortfolioTrustState,

@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TrustPanel } from '@/components/trust/TrustPanel';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
+import { useAuth } from '@/lib/auth';
 import { challengesApi, transactionsApi } from '@/lib/api';
 import type { Challenge, Transaction } from '@/lib/api';
 import { useTrustState } from '@/lib/useTrustState';
 import { useWallet } from '@solana/wallet-adapter-react';
 
 function ChallengesContent() {
+  const { user } = useAuth();
   const { publicKey } = useWallet();
   const trust = useTrustState(publicKey?.toBase58() ?? null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
@@ -21,6 +23,7 @@ function ChallengesContent() {
   const [selectedTxnId, setSelectedTxnId] = useState<number | null>(null);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const canResolveChallenges = user?.role === 'admin' || user?.role === 'super_admin';
 
   useEffect(() => {
     loadData();
@@ -78,7 +81,7 @@ function ChallengesContent() {
       await challengesApi.resolve(challengeId, evidence);
       await loadData();
     } catch {
-      setError('Failed to resolve challenge');
+      setError(canResolveChallenges ? 'Failed to resolve challenge' : 'Only admins can resolve challenges.');
     }
   };
 
@@ -349,7 +352,7 @@ function ChallengesContent() {
                       )}
                     </div>
 
-                    {isPending && (
+                    {isPending && canResolveChallenges && (
                       <button
                         onClick={() => handleResolve(challenge.id)}
                         disabled={trust.state !== 'verified'}

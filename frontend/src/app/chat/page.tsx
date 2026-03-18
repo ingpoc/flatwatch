@@ -256,6 +256,8 @@ function ChatContent() {
             <div className="space-y-2">
               <div className="flex items-end gap-3">
                 <Textarea
+                  id="flatwatch-chat-input"
+                  name="chatPrompt"
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={(event) => {

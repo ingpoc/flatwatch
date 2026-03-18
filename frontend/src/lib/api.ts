@@ -142,6 +142,8 @@ export const healthCheck = async (): Promise<{ status: string; database: string;
 export interface Receipt {
   filename: string;
   upload_date: string;
+  original_filename?: string;
+  size?: number;
   extracted_amount?: number;
   extracted_date?: string;
   extracted_vendor?: string;
@@ -149,25 +151,90 @@ export interface Receipt {
   match_status?: 'matched' | 'partial' | 'unmatched';
 }
 
+interface ReceiptUploadResponse {
+  message: string;
+  filename: string;
+  original_filename?: string;
+  path: string;
+  transaction_id: number | null;
+}
+
+interface ReceiptListResponse {
+  files: Array<{
+    filename: string;
+    size: number;
+    uploaded_at: number;
+  }>;
+}
+
+interface ReceiptProcessResponse {
+  message: string;
+  receipt: string;
+  extracted?: {
+    amount?: number;
+    date?: string;
+    vendor?: string;
+  };
+  matched_transaction?: {
+    id?: number;
+  } | null;
+  flag_level?: 'green' | 'yellow' | 'red';
+}
+
+function toReceiptFromUpload(payload: ReceiptUploadResponse): Receipt {
+  return {
+    filename: payload.filename,
+    original_filename: payload.original_filename,
+    upload_date: new Date().toISOString(),
+  };
+}
+
+function toReceiptList(payload: ReceiptListResponse): Receipt[] {
+  return payload.files.map((file) => ({
+    filename: file.filename,
+    upload_date: new Date(file.uploaded_at * 1000).toISOString(),
+    size: file.size,
+  }));
+}
+
+function toReceiptFromProcess(payload: ReceiptProcessResponse): Receipt {
+  const flag = payload.flag_level;
+
+  return {
+    filename: payload.receipt,
+    upload_date: new Date().toISOString(),
+    extracted_amount: payload.extracted?.amount,
+    extracted_date: payload.extracted?.date,
+    extracted_vendor: payload.extracted?.vendor,
+    matched_transaction_id: payload.matched_transaction?.id,
+    match_status: flag === 'green' ? 'matched' : flag === 'yellow' ? 'partial' : 'unmatched',
+  };
+}
+
 export const receiptsApi = {
   upload: async (file: File): Promise<Receipt> => {
     const formData = new FormData();
     formData.append('file', file);
 
-    return apiCall<Receipt>('/api/receipts/upload', {
+    const response = await apiCall<ReceiptUploadResponse>('/api/receipts/upload', {
       method: 'POST',
       body: formData,
     });
+
+    return toReceiptFromUpload(response);
   },
 
   list: async (): Promise<Receipt[]> => {
-    return apiCall<Receipt[]>('/api/receipts/list');
+    const response = await apiCall<ReceiptListResponse>('/api/receipts/list');
+    return toReceiptList(response);
   },
 
   process: async (filename: string): Promise<Receipt> => {
-    return apiCall<Receipt>(`/api/ocr/process/${filename}`, {
+    const response = await apiCall<ReceiptProcessResponse>(`/api/ocr/process/${filename}`, {
       method: 'POST',
     });
+
+    return toReceiptFromProcess(response);
   },
 };
 
