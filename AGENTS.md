@@ -1,9 +1,14 @@
 # AGENTS.md
 
-## Instruction Inheritance
+## Inheritance Contract
 
+- Global baseline: `Organization` published baseline from `/Users/gurusharan/Documents/Organization/reports/publish/publish-manifest.json`
+- Workspace parent: `../AGENTS.md`
 - Read `../AGENTS.md` first for portfolio-wide governance.
 - This file adds only `flatwatch`-specific execution guidance.
+- Organization routing: `inherits_by_default`
+- Local policy authority: `AGENTS.md`
+- Local CLAUDE policy: `defer_to_agents`
 - If this file conflicts with the root workspace `AGENTS.md`, the root file wins unless it explicitly allows a repo-local exception.
 - `CLAUDE.md` is optional context and not a separate policy authority.
 
