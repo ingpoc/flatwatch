@@ -10,6 +10,7 @@ Object.defineProperty(window, 'location', {
 });
 
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
+const BACKEND_UNAVAILABLE_MESSAGE = 'FlatWatch backend unavailable at http://127.0.0.1:43104. Start the local API and try again.';
 
 describe('flatwatch auth provider', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -84,6 +85,18 @@ describe('flatwatch auth provider', () => {
     expect(window.localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
   });
 
+  it('surfaces a backend-specific message when session validation cannot reach the API', async () => {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'demo-token');
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe(BACKEND_UNAVAILABLE_MESSAGE);
+  });
+
   it('logs in through the local backend and stores the token', async () => {
     const loginResponse = {
       access_token: 'fresh-token',
@@ -122,6 +135,21 @@ describe('flatwatch auth provider', () => {
       name: 'Resident User',
       role: 'resident',
     });
+  });
+
+  it('surfaces a backend-specific message when login cannot reach the API', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await act(async () => {
+      await result.current.login();
+    });
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe(BACKEND_UNAVAILABLE_MESSAGE);
   });
 
   it('logs out by clearing the local token and returning home', async () => {

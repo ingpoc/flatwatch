@@ -167,8 +167,15 @@ function ChallengesContent() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Transaction</label>
+              <label
+                htmlFor="challenge-transaction"
+                style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}
+              >
+                Transaction
+              </label>
               <select
+                id="challenge-transaction"
+                name="challenge-transaction"
                 value={selectedTxnId || ''}
                 onChange={e => setSelectedTxnId(e.target.value ? Number(e.target.value) : null)}
                 style={{
@@ -195,8 +202,15 @@ function ChallengesContent() {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}>Reason for Challenge</label>
+              <label
+                htmlFor="challenge-reason"
+                style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}
+              >
+                Reason for Challenge
+              </label>
               <textarea
+                id="challenge-reason"
+                name="challenge-reason"
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 placeholder="Explain why you're disputing this transaction..."

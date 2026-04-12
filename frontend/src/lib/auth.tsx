@@ -6,6 +6,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:43104';
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 const DEV_LOGIN_EMAIL = process.env.NEXT_PUBLIC_DEV_USER_EMAIL || 'resident@flatwatch.test';
 const DEV_LOGIN_PASSWORD = process.env.NEXT_PUBLIC_DEV_USER_PASSWORD || 'dev-local';
+const BACKEND_UNAVAILABLE_MESSAGE = `FlatWatch backend unavailable at ${API_BASE}. Start the local API and try again.`;
 
 export interface User {
   id: string;
@@ -35,6 +36,14 @@ export function useAuth() {
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+function formatAuthError(error: unknown): string {
+  if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+    return BACKEND_UNAVAILABLE_MESSAGE;
+  }
+
+  return error instanceof Error ? error.message : 'Unknown error';
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -85,8 +94,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
       return false;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMessage);
+      setError(formatAuthError(err));
       setUser(null);
       return false;
     } finally {
@@ -121,7 +129,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         role: data.user.role,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(formatAuthError(err));
       setUser(null);
     } finally {
       setLoading(false);
