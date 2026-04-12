@@ -16,3 +16,4 @@ API_VERSION = "0.1.0"
 
 # SSO Identity Provider
 IDENTITY_URL = os.getenv("IDENTITY_URL", "https://aadharcha.in")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:43105")

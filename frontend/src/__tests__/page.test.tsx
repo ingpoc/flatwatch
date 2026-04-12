@@ -14,10 +14,11 @@ describe('Home', () => {
     expect(tagline).toBeInTheDocument()
   })
 
-  it('renders Get Started button', () => {
+  it('renders Get Started link', () => {
     render(<Home />)
-    const button = screen.getByRole('button', { name: 'Get Started' })
-    expect(button).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'Get Started' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/dashboard')
   })
 
   it('renders system status', () => {

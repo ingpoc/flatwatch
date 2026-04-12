@@ -5,6 +5,7 @@ from typing import List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
+from .config import FRONTEND_URL
 from .database import get_db_connection
 
 
@@ -123,7 +124,7 @@ def generate_summary_html(summary: EmailSummary) -> str:
                 </div>
 
                 <div class="section">
-                    <p><a href="http://localhost:43105/dashboard" style="background: #ff611a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Full Dashboard</a></p>
+                    <p><a href="{FRONTEND_URL}/dashboard" style="background: #ff611a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Full Dashboard</a></p>
                 </div>
 
                 <div class="footer">
@@ -160,7 +161,7 @@ Pending Challenges: {summary.pending_challenges}
 Red Flags: {summary.red_flags} (requires attention)
 Yellow Flags: {summary.yellow_flags} (review recommended)
 
-View full dashboard: http://localhost:43105/dashboard
+View full dashboard: {FRONTEND_URL}/dashboard
 
 ---
 FlatWatch Society Transparency System

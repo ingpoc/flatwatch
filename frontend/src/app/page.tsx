@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,9 +35,11 @@ export default function Home() {
                 The operational shell, evidence intake, and agent workflows now follow the shared Luma trust-consumer standard.
               </p>
             </div>
-            <Button size="lg" onClick={() => { window.location.href = '/dashboard'; }}>
-              Get Started
-              <ArrowRight className="size-4" />
+            <Button size="lg" asChild>
+              <Link href="/dashboard">
+                Get Started
+                <ArrowRight className="size-4" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
