@@ -1,3 +1,6 @@
 .DS_Store
 .codex/
 .venv/
+
+# Local Netlify folder
+.netlify
