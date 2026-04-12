@@ -1,15 +1,41 @@
-// Challenge Mode - Dispute suspicious transactions
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, FileWarning } from 'lucide-react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TrustPanel } from '@/components/trust/TrustPanel';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldContent, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
 import { useAuth } from '@/lib/auth';
 import { challengesApi, transactionsApi } from '@/lib/api';
 import type { Challenge, Transaction } from '@/lib/api';
 import { useTrustState } from '@/lib/useTrustState';
-import { useWallet } from '@solana/wallet-adapter-react';
+
+function getChallengeBadge(status: Challenge['status']) {
+  switch (status) {
+    case 'resolved':
+      return { label: 'Resolved', variant: 'default' as const };
+    case 'rejected':
+      return { label: 'Rejected', variant: 'destructive' as const };
+    default:
+      return { label: 'Pending', variant: 'secondary' as const };
+  }
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 function ChallengesContent() {
   const { user } = useAuth();
@@ -25,21 +51,22 @@ function ChallengesContent() {
   const [submitting, setSubmitting] = useState(false);
   const canResolveChallenges = user?.role === 'admin' || user?.role === 'super_admin';
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const transactionMap = useMemo(
+    () => new Map(transactions.map((transaction) => [transaction.id, transaction])),
+    [transactions],
+  );
 
   const loadData = async () => {
     try {
       setError(null);
-      const [challengesData, transactionsData] = await Promise.all([
+      const [challengeData, transactionData] = await Promise.all([
         challengesApi.list(),
         transactionsApi.list({ limit: 50 }),
       ]);
-      setChallenges(Array.isArray(challengesData) ? challengesData : []);
-      setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
+      setChallenges(Array.isArray(challengeData) ? challengeData : []);
+      setTransactions(Array.isArray(transactionData) ? transactionData : []);
     } catch {
-      setError('Failed to load data');
+      setError('Failed to load challenges.');
       setChallenges([]);
       setTransactions([]);
     } finally {
@@ -47,8 +74,15 @@ function ChallengesContent() {
     }
   };
 
+  useEffect(() => {
+    void loadData();
+  }, []);
+
   const handleCreateChallenge = async () => {
-    if (!selectedTxnId || !reason.trim() || submitting) return;
+    if (!selectedTxnId || !reason.trim() || submitting) {
+      return;
+    }
+
     if (trust.state !== 'verified') {
       setError(trust.reason || 'Complete AadhaarChain verification before filing a challenge.');
       return;
@@ -56,13 +90,13 @@ function ChallengesContent() {
 
     setSubmitting(true);
     try {
-      await challengesApi.create(selectedTxnId, reason);
+      await challengesApi.create(selectedTxnId, reason.trim());
       setShowNewForm(false);
       setSelectedTxnId(null);
       setReason('');
       await loadData();
     } catch {
-      setError('Failed to create challenge');
+      setError('Failed to create challenge.');
     } finally {
       setSubmitting(false);
     }
@@ -74,343 +108,201 @@ function ChallengesContent() {
       return;
     }
 
-    const evidence = prompt('Enter evidence URL:');
-    if (!evidence) return;
+    const evidence = window.prompt('Enter evidence URL:');
+    if (!evidence) {
+      return;
+    }
 
     try {
       await challengesApi.resolve(challengeId, evidence);
       await loadData();
     } catch {
-      setError(canResolveChallenges ? 'Failed to resolve challenge' : 'Only admins can resolve challenges.');
+      setError('Failed to resolve challenge.');
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'rgb(255,152,0)';
-      case 'resolved': return 'rgb(76,175,80)';
-      case 'rejected': return 'rgb(244,67,54)';
-      default: return 'rgb(158,158,158)';
-    }
-  };
-
-  const getTransactionById = (id: number) => {
-    return transactions.find(t => t.id === id);
   };
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'rgb(255,97,26)', animation: 'pulse 1s infinite' }} />
-          <span style={{ color: '#999' }}>Loading...</span>
-        </div>
+      <div className="premium-shell flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex items-center justify-center gap-3 py-10 text-muted-foreground">
+            <Spinner />
+            Loading challenges…
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <PageLayout title="Challenge Mode" description="Dispute suspicious transactions">
+    <PageLayout title="Challenges" description="Flag suspicious activity, attach trust-backed rationale, and close investigations with evidence.">
       <TrustPanel
         state={trust.state}
         loading={trust.loading}
         error={trust.error}
         reason={trust.reason}
         walletConnected={Boolean(publicKey)}
-        actionLabel={publicKey ? 'Resolve challenge trust in AadhaarChain' : null}
+        actionLabel={publicKey ? 'Review trust in AadhaarChain' : null}
       />
 
-      {/* Error message */}
-      {error && (
-        <div style={{ marginBottom: '24px', borderRadius: '16px', backgroundColor: 'rgb(255,243,224)', padding: '16px', color: 'rgb(255,97,26)' }}>
-          {error}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Challenge desk</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Trust verification is required before a dispute can be filed or resolved.
+          </p>
         </div>
-      )}
-
-      {/* New Challenge Button */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
-        <button
-          onClick={() => setShowNewForm(!showNewForm)}
-          disabled={trust.state !== 'verified'}
-          style={{
-            height: '48px',
-            borderRadius: '999px',
-            backgroundColor: trust.state === 'verified' ? 'rgb(255,97,26)' : 'rgb(238,238,238)',
-            padding: '0 24px',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: trust.state === 'verified' ? 'white' : '#999',
-            border: 'none',
-            boxShadow: trust.state === 'verified' ? '0 2px 8px rgba(255,97,26,0.3)' : 'none',
-            transition: 'all 0.2s',
-            cursor: trust.state === 'verified' ? 'pointer' : 'not-allowed'
-          }}
-          onMouseEnter={(e) => {
-            if (trust.state === 'verified') {
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,97,26,0.4)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (trust.state === 'verified') {
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,97,26,0.3)';
-            }
-          }}
-        >
-          {trust.state === 'verified' ? (showNewForm ? 'Cancel' : 'New Challenge') : 'Verified trust required'}
-        </button>
+        <Button type="button" variant={showNewForm ? 'secondary' : 'default'} onClick={() => setShowNewForm((current) => !current)}>
+          {showNewForm ? 'Close form' : 'New challenge'}
+        </Button>
       </div>
 
-      {/* New Challenge Form */}
-      {showNewForm && (
-        <div style={{ width: '100%', borderRadius: '24px', backgroundColor: 'white', padding: '24px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 500, color: '#333', marginBottom: '24px' }}>Create New Challenge</h2>
+      {error ? (
+        <Card className="border-destructive/20">
+          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+        </Card>
+      ) : null}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label
-                htmlFor="challenge-transaction"
-                style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}
+      {showNewForm ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>File a new challenge</CardTitle>
+            <CardDescription>
+              Select the transaction in question and describe why the activity should be reviewed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="challenge-transaction">Transaction</FieldLabel>
+                <FieldContent>
+                  <Select
+                    value={selectedTxnId ? String(selectedTxnId) : ''}
+                    onValueChange={(value) => setSelectedTxnId(Number(value))}
+                  >
+                    <SelectTrigger id="challenge-transaction">
+                      <SelectValue placeholder="Select a transaction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {transactions.map((transaction) => (
+                        <SelectItem key={transaction.id} value={String(transaction.id)}>
+                          {formatCurrency(transaction.amount)} · {transaction.description || 'No description'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldContent>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="challenge-reason">Reason</FieldLabel>
+                <FieldContent>
+                  <Textarea
+                    id="challenge-reason"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Explain why this transaction should be challenged."
+                    rows={4}
+                  />
+                </FieldContent>
+              </Field>
+
+              <Button
+                type="button"
+                onClick={() => void handleCreateChallenge()}
+                disabled={trust.state !== 'verified' || !selectedTxnId || !reason.trim() || submitting}
               >
-                Transaction
-              </label>
-              <select
-                id="challenge-transaction"
-                name="challenge-transaction"
-                value={selectedTxnId || ''}
-                onChange={e => setSelectedTxnId(e.target.value ? Number(e.target.value) : null)}
-                style={{
-                  width: '100%',
-                  borderRadius: '999px',
-                  border: '1px solid rgb(238,238,238)',
-                  backgroundColor: 'rgb(249,249,249)',
-                  padding: '12px 16px',
-                  fontSize: '14px',
-                  color: '#333',
-                  outline: 'none',
-                  transition: 'all 0.2s'
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
-              >
-                <option value="">Select a transaction</option>
-                {transactions.map(txn => (
-                  <option key={txn.id} value={txn.id}>
-                    {txn.description || 'No description'} - ₹{txn.amount} ({txn.transaction_type})
-                  </option>
-                ))}
-              </select>
+                {submitting ? 'Submitting…' : trust.state === 'verified' ? 'Submit challenge' : 'Trust required'}
+              </Button>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {challenges.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <FileWarning className="size-8 text-muted-foreground" />
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">No active challenges</p>
+              <p className="text-sm text-muted-foreground">
+                Open the form when a transaction needs an evidence-backed review trail.
+              </p>
             </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {challenges.map((challenge) => {
+            const transaction = transactionMap.get(challenge.transaction_id);
+            const badge = getChallengeBadge(challenge.status);
 
-            <div>
-              <label
-                htmlFor="challenge-reason"
-                style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#333', marginBottom: '8px' }}
-              >
-                Reason for Challenge
-              </label>
-              <textarea
-                id="challenge-reason"
-                name="challenge-reason"
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder="Explain why you're disputing this transaction..."
-                rows={3}
-                style={{
-                  width: '100%',
-                  borderRadius: '16px',
-                  border: '1px solid rgb(238,238,238)',
-                  backgroundColor: 'rgb(249,249,249)',
-                  padding: '12px 16px',
-                  fontSize: '14px',
-                  color: '#333',
-                  outline: 'none',
-                  transition: 'all 0.2s',
-                  resize: 'vertical',
-                  fontFamily: 'inherit'
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgb(255,97,26)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgb(238,238,238)'; }}
-              />
-            </div>
-
-            <button
-              onClick={handleCreateChallenge}
-              disabled={trust.state !== 'verified' || !selectedTxnId || !reason.trim() || submitting}
-              style={{
-                width: '100%',
-                height: '48px',
-                borderRadius: '999px',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting ? 'white' : '#999',
-                border: 'none',
-                backgroundColor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'rgb(255,97,26)' : 'rgb(238,238,238)',
-                boxShadow: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? '0 2px 8px rgba(255,97,26,0.3)' : 'none',
-                cursor: (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,97,26,0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (trust.state === 'verified' && selectedTxnId && reason.trim() && !submitting) {
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,97,26,0.3)';
-                }
-              }}
-            >
-              {trust.state !== 'verified'
-                ? 'Verified trust required'
-                : submitting
-                  ? 'Submitting...'
-                  : 'Submit Challenge'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Challenges List */}
-      <div>
-        <h2 style={{ fontSize: '20px', fontWeight: 500, color: '#333', marginBottom: '16px' }}>
-          Challenges ({challenges.length})
-        </h2>
-
-        {challenges.length === 0 ? (
-          <div style={{ marginTop: '24px', textAlign: 'center', color: '#999' }}>No challenges yet</div>
-        ) : (
-          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {challenges.map((challenge) => {
-              const txn = getTransactionById(challenge.transaction_id);
-              const isPending = challenge.status === 'pending';
-              const createdDate = new Date(challenge.created_at);
-              const timeDiff = Date.now() - createdDate.getTime();
-              const hoursRemaining = 48 - Math.floor(timeDiff / (1000 * 60 * 60));
-
-              return (
-                <div
-                  key={challenge.id}
-                  style={{
-                    borderRadius: '16px',
-                    backgroundColor: 'white',
-                    padding: '20px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                        <h3 style={{ fontWeight: 500, color: '#333' }}>Challenge #{challenge.id}</h3>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getStatusColor(challenge.status), flexShrink: 0 }} />
-                        <span style={{ fontSize: '14px', color: '#999' }}>{challenge.status}</span>
+            return (
+              <Card key={challenge.id} size="sm">
+                <CardHeader className="gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <CardTitle className="text-base font-medium">Challenge #{challenge.id}</CardTitle>
                       </div>
-
-                      {txn && (
-                        <div style={{ marginTop: '12px', borderRadius: '16px', backgroundColor: 'rgb(249,249,249)', padding: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <p style={{ fontSize: '14px', fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {txn.description || 'No description'}
-                              </p>
-                              <p style={{ marginTop: '4px', fontSize: '14px', color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {txn.vpa || 'Unknown VPA'}
-                              </p>
-                            </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <p style={{ fontSize: '16px', fontWeight: 600, color: '#333' }}>
-                                {txn.transaction_type === 'inflow' ? '+' : '-'}₹{txn.amount}
-                              </p>
-                              <p style={{ fontSize: '12px', color: '#999' }}>
-                                {new Date(txn.timestamp).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div style={{ marginTop: '12px' }}>
-                        <p style={{ fontSize: '14px', color: '#333' }}>{challenge.reason}</p>
-                      </div>
-
-                      {isPending && hoursRemaining > 0 && (
-                        <div style={{ marginTop: '12px', display: 'inline-flex', borderRadius: '999px', backgroundColor: 'rgb(255,243,224)', padding: '4px 12px' }}>
-                          <p style={{ fontSize: '12px', color: 'rgb(255,97,26)', margin: 0 }}>
-                            ⏰ {hoursRemaining}h remaining
-                          </p>
-                        </div>
-                      )}
-
-                      {challenge.resolved_at && (
-                        <p style={{ marginTop: '12px', fontSize: '12px', color: '#999' }}>
-                          Resolved: {new Date(challenge.resolved_at).toLocaleString()}
-                        </p>
-                      )}
-
-                      {challenge.evidence && (
-                        <div style={{ marginTop: '12px' }}>
-                          <p style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>Evidence:</p>
-                          <a
-                            href={challenge.evidence}
-                            target="_blank"
-                            rel="noopener"
-                            style={{ fontSize: '12px', color: 'rgb(255,97,26)', textDecoration: 'none' }}
-                            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
-                          >
-                            {challenge.evidence}
-                          </a>
-                        </div>
-                      )}
+                      <CardDescription>
+                        Opened {new Date(challenge.created_at).toLocaleString()}
+                      </CardDescription>
                     </div>
-
-                    {isPending && canResolveChallenges && (
-                      <button
-                        onClick={() => handleResolve(challenge.id)}
-                        disabled={trust.state !== 'verified'}
-                        style={{
-                          flexShrink: 0,
-                          height: '40px',
-                          borderRadius: '999px',
-                          backgroundColor: trust.state === 'verified' ? 'rgb(76,175,80)' : 'rgb(238,238,238)',
-                          padding: '0 16px',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          color: trust.state === 'verified' ? 'white' : '#999',
-                          border: 'none',
-                          boxShadow: trust.state === 'verified' ? '0 2px 8px rgba(76,175,80,0.3)' : 'none',
-                          transition: 'all 0.2s',
-                          cursor: trust.state === 'verified' ? 'pointer' : 'not-allowed'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (trust.state === 'verified') {
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(76,175,80,0.4)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (trust.state === 'verified') {
-                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(76,175,80,0.3)';
-                          }
-                        }}
-                      >
-                        {trust.state === 'verified' ? 'Resolve' : 'Trust required'}
-                      </button>
-                    )}
+                    {challenge.status === 'pending' && canResolveChallenges ? (
+                      <Button type="button" variant="secondary" onClick={() => void handleResolve(challenge.id)}>
+                        Resolve with evidence
+                      </Button>
+                    ) : null}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  {transaction ? (
+                    <div className="rounded-3xl bg-secondary/60 px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium text-foreground">
+                            {transaction.description || 'Transaction'}
+                          </div>
+                          <div className="text-sm text-muted-foreground">{transaction.vpa || 'Unknown VPA'}</div>
+                        </div>
+                        <div className="text-sm font-medium text-foreground">
+                          {transaction.transaction_type === 'inflow' ? '+' : '-'}
+                          {formatCurrency(transaction.amount)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
-      {/* Footer status */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '999px', backgroundColor: 'rgb(238,238,238)', padding: '12px 16px' }}>
-        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'rgb(76,175,80)' }} />
-        <span style={{ fontSize: '14px', color: '#999' }}>System online • 48h resolution timer</span>
-      </div>
+                  <p className="text-sm text-foreground">{challenge.reason}</p>
+
+                  {challenge.evidence ? (
+                    <div className="text-sm">
+                      <span className="font-medium text-foreground">Evidence: </span>
+                      <a className="text-primary underline-offset-4 hover:underline" href={challenge.evidence} target="_blank" rel="noreferrer">
+                        {challenge.evidence}
+                      </a>
+                    </div>
+                  ) : null}
+
+                  {challenge.resolved_at ? (
+                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <CheckCircle2 className="size-4 text-primary" />
+                      Resolved {new Date(challenge.resolved_at).toLocaleString()}
+                    </div>
+                  ) : challenge.status === 'pending' ? (
+                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertTriangle className="size-4 text-primary" />
+                      Awaiting evidence-backed resolution
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </PageLayout>
   );
 }

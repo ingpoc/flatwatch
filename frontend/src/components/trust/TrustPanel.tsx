@@ -1,33 +1,45 @@
 'use client';
 
-import { Button, TrustBanner } from '@/lib/portfolio-ui';
+import { ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import type { PortfolioTrustState } from '@/lib/trust';
 
 const IDENTITY_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://127.0.0.1:43100';
 
 const STATE_META: Record<
   PortfolioTrustState,
-  { title: string; tone: 'neutral' | 'warning' | 'success' | 'error' }
+  {
+    title: string;
+    badge: 'secondary' | 'default' | 'destructive' | 'outline';
+    icon: typeof ShieldAlert;
+  }
 > = {
   no_identity: {
-    title: 'AadhaarChain trust: No identity',
-    tone: 'neutral',
+    title: 'No identity',
+    badge: 'outline',
+    icon: ShieldAlert,
   },
   identity_present_unverified: {
-    title: 'AadhaarChain trust: Unverified',
-    tone: 'warning',
+    title: 'Identity present',
+    badge: 'secondary',
+    icon: ShieldAlert,
   },
   verified: {
-    title: 'AadhaarChain trust: Verified',
-    tone: 'success',
+    title: 'Verified',
+    badge: 'default',
+    icon: ShieldCheck,
   },
   manual_review: {
-    title: 'AadhaarChain trust: Manual review',
-    tone: 'warning',
+    title: 'Manual review',
+    badge: 'secondary',
+    icon: ShieldAlert,
   },
   revoked_or_blocked: {
-    title: 'AadhaarChain trust: Blocked',
-    tone: 'error',
+    title: 'Blocked',
+    badge: 'destructive',
+    icon: ShieldX,
   },
 };
 
@@ -48,15 +60,22 @@ export function TrustPanel({
 }) {
   if (loading) {
     return (
-      <TrustBanner
-        title="Loading AadhaarChain trust"
-        description="Syncing the wallet-linked trust record before enabling evidence and challenge actions."
-        tone="neutral"
-      />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">Syncing</Badge>
+            <CardTitle>Loading AadhaarChain trust</CardTitle>
+          </div>
+          <CardDescription>
+            Syncing the wallet-linked trust record before enabling evidence and challenge actions.
+          </CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
   const meta = STATE_META[state];
+  const Icon = meta.icon;
   const message =
     !walletConnected
       ? 'Connect the same Solflare wallet you use in AadhaarChain before using trust-gated evidence or challenge flows.'
@@ -64,24 +83,43 @@ export function TrustPanel({
         reason ||
         ({
           no_identity: 'Create an identity anchor in AadhaarChain before using auditable evidence or challenge flows.',
-          identity_present_unverified: 'Complete AadhaarChain verification before uploading evidence or filing high-trust challenges.',
-          manual_review: 'Verification is under manual review. Evidence-backed actions stay paused until review completes.',
-          revoked_or_blocked: 'Trust state is blocked or revoked. Review AadhaarChain before attempting elevated transparency actions.',
-          verified: 'Trust state is verified. Evidence and challenge actions can be attributed to a portable trust record.',
+          identity_present_unverified:
+            'Complete AadhaarChain verification before uploading evidence or filing high-trust challenges.',
+          manual_review:
+            'Verification is under manual review. Evidence-backed actions stay paused until review completes.',
+          revoked_or_blocked:
+            'Trust state is blocked or revoked. Review AadhaarChain before attempting elevated transparency actions.',
+          verified:
+            'Trust state is verified. Evidence and challenge actions can be attributed to a portable trust record.',
         }[state]);
 
   return (
-    <TrustBanner
-      title={meta.title}
-      description={message}
-      tone={meta.tone}
-      action={
-        actionLabel ? (
-          <Button type="button" variant={state === 'verified' ? 'secondary' : 'default'} onClick={() => window.open(IDENTITY_URL, '_blank', 'noopener,noreferrer')}>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-2xl bg-secondary text-foreground">
+            <Icon className="size-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={meta.badge}>AadhaarChain {meta.title}</Badge>
+              <CardTitle>Trust status</CardTitle>
+            </div>
+            <CardDescription>{message}</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      {actionLabel ? (
+        <CardContent className="pt-0">
+          <Button
+            type="button"
+            variant={state === 'verified' ? 'secondary' : 'default'}
+            onClick={() => window.open(IDENTITY_URL, '_blank', 'noopener,noreferrer')}
+          >
             {actionLabel}
           </Button>
-        ) : undefined
-      }
-    />
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }

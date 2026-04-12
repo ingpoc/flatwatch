@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TrustPanel } from '@/components/trust/TrustPanel';
 import { TransactionList } from '@/components/dashboard/TransactionList';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
 import { transactionsApi, type Transaction } from '@/lib/api';
 import { useTrustState } from '@/lib/useTrustState';
-import { useWallet } from '@solana/wallet-adapter-react';
 
 function TransactionsContent() {
   const { publicKey } = useWallet();
@@ -23,7 +26,7 @@ function TransactionsContent() {
       const data = await transactionsApi.list({ limit: 50 });
       setTransactions(Array.isArray(data) ? data : []);
     } catch {
-      setError('Failed to load transactions');
+      setError('Failed to load transactions.');
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -41,18 +44,20 @@ function TransactionsContent() {
       await transactionsApi.sync();
       await loadTransactions();
     } catch {
-      setError('Sync failed');
+      setError('Sync failed.');
       setSyncing(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 animate-pulse rounded-full bg-[rgb(255,97,26)]" />
-          <span className="text-[#999]">Loading transactions...</span>
-        </div>
+      <div className="premium-shell flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex items-center justify-center gap-3 py-10 text-muted-foreground">
+            <Spinner />
+            Loading transactions…
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -69,23 +74,15 @@ function TransactionsContent() {
       />
 
       <div className="flex justify-end">
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className={`h-10 rounded-full px-4 text-sm font-medium transition-all active:scale-95 ${
-            syncing
-              ? 'cursor-not-allowed bg-[rgb(238,238,238)] text-[#999]'
-              : 'bg-[rgb(238,238,238)] text-[#333] hover:bg-[rgb(232,232,232)]'
-          }`}
-        >
-          {syncing ? 'Syncing...' : 'Sync Now'}
-        </button>
+        <Button type="button" variant="secondary" onClick={handleSync} disabled={syncing}>
+          {syncing ? 'Syncing…' : 'Sync now'}
+        </Button>
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-[rgba(194,65,12,0.2)] bg-[rgba(255,247,237,0.9)] px-5 py-4 text-sm text-[rgb(194,65,12)]">
-          {error}
-        </div>
+        <Card className="border-destructive/20">
+          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+        </Card>
       ) : null}
 
       <TransactionList transactions={transactions} />

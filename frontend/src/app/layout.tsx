@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Sacramento } from "next/font/google";
+import { Geist, Geist_Mono, Sacramento, Inter } from "next/font/google";
 import "./globals.css";
 import { SkipLink } from "@/components/a11y";
 import { AuthProvider } from "@/lib/auth";
 import { WalletProvider } from "@/lib/wallet";
+import { cn } from "@/lib/utils";
+
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,7 +24,6 @@ const sacramento = Sacramento({
   weight: ["400"],
 });
 
-export { sacramento };
 export const metadata: Metadata = {
   title: "FlatWatch - Society Transparency System",
   description: "Financial transparency for housing societies",
@@ -39,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={cn("font-sans", inter.variable)}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${sacramento.variable} antialiased`}
       >

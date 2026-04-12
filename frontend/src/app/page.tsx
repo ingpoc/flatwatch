@@ -1,44 +1,49 @@
-/* FlatWatch - Society Cash Tracker */
-/* DRAMS Design: "Less, but better" - Dieter Rams principles */
-
 'use client';
 
-import Link from 'next/link';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white font-sans">
-      <main className="flex w-full max-w-2xl flex-col items-center gap-12 px-6 py-20 text-center">
-        {/* Title */}
-        <div className="flex flex-col items-center gap-4">
-          <h1 className="text-4xl font-semibold tracking-tight text-[#333] sm:text-5xl">
+    <div className="premium-shell flex min-h-screen items-center justify-center px-6 py-20">
+      <main className="flex w-full max-w-4xl flex-col items-center gap-10 text-center">
+        <div className="space-y-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Trust Consumer Surface
+          </div>
+          <h1 className="text-5xl font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
             FlatWatch
           </h1>
-          <p className="text-lg text-[#999]">
-            Society Cash Tracker
+          <p className="text-lg text-muted-foreground">Society Cash Tracker</p>
+          <p className="mx-auto max-w-2xl text-base text-muted-foreground sm:text-lg">
+            Financial transparency for housing societies, grounded in AadhaarChain trust and evidence-first workflows.
           </p>
         </div>
 
-        {/* DRAMS Card Component */}
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] hover:-translate-y-1">
-          <p className="mb-6 text-[#333]">
-            Financial transparency for housing societies
-          </p>
-
-          {/* DRAMS Action Button */}
-          <Link href="/dashboard">
-            <button className="h-12 w-full rounded-full bg-[rgb(255,97,26)] px-6 text font-medium text-white shadow-[0_2px_8px_rgba(255,97,26,0.3)] transition-all hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95">
+        <Card className="w-full max-w-2xl">
+          <CardContent className="flex flex-col items-center gap-6 py-10">
+            <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <ShieldCheck className="size-6" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-lg font-medium text-foreground">
+                Move from transaction review to trust-backed disputes without changing context.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                The operational shell, evidence intake, and agent workflows now follow the shared Luma trust-consumer standard.
+              </p>
+            </div>
+            <Button size="lg" onClick={() => { window.location.href = '/dashboard'; }}>
               Get Started
-            </button>
-          </Link>
-        </div>
+              <ArrowRight className="size-4" />
+            </Button>
+          </CardContent>
+        </Card>
 
-        {/* Status indicator */}
-        <div className="flex items-center gap-2 rounded-full bg-[rgb(238,238,238)] px-4 py-2">
-          <span className="h-2 w-2 rounded-full bg-[rgb(255,97,26)]" />
-          <span className="text-sm text-[#999]">
-            System initializing...
-          </span>
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground shadow-sm">
+          <span className="size-2 rounded-full bg-primary" />
+          System initializing...
         </div>
       </main>
     </div>

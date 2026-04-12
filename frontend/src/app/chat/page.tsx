@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Alert, Badge, Button, Card, ChatLayout, Textarea } from '@/lib/portfolio-ui';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
 import { agentApi, type AgentRuntimeSnapshot, type AgentSessionSummary, type UsageSnapshot } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTrustState } from '@/lib/useTrustState';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 
 const STORAGE_KEY = 'flatwatch-agent-session-id';
 
@@ -41,6 +46,7 @@ function getStoredSessionId() {
   if (typeof window === 'undefined') {
     return '';
   }
+
   return window.localStorage.getItem(STORAGE_KEY) ?? '';
 }
 
@@ -52,11 +58,37 @@ function setStoredSessionId(sessionId: string) {
 
 function UsageBadge({ usage }: { usage: UsageSnapshot }) {
   return (
-    <Badge tone="info">
-      {usage.requests_limit > 0
-        ? `Usage ${usage.requests_used}/${usage.requests_limit}`
-        : `${usage.requests_used} requests this period`}
+    <Badge variant="outline">
+      {usage.requests_limit > 0 ? `Usage ${usage.requests_used}/${usage.requests_limit}` : `${usage.requests_used} requests this period`}
     </Badge>
+  );
+}
+
+function NoticeCard({
+  title,
+  description,
+  tone = 'outline',
+}: {
+  title: string;
+  description: string;
+  tone?: 'outline' | 'secondary' | 'destructive';
+}) {
+  const className =
+    tone === 'destructive'
+      ? 'border-destructive/20'
+      : tone === 'secondary'
+        ? 'border-primary/15 bg-primary/5'
+        : undefined;
+
+  return (
+    <Card className={className}>
+      <CardContent className="py-4">
+        <div className="space-y-1">
+          <div className="text-sm font-medium text-foreground">{title}</div>
+          <div className="text-sm text-muted-foreground">{description}</div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -87,6 +119,7 @@ function ChatContent() {
     }
 
     let cancelled = false;
+
     const run = async () => {
       try {
         setRuntimeLoading(true);
@@ -169,6 +202,7 @@ function ChatContent() {
       if (finalResponse) {
         setMessages((current) => [...current, { role: 'assistant', content: finalResponse }]);
       }
+
       setRuntime((current) => ({
         ...current,
         usage: latestUsage,
@@ -192,43 +226,43 @@ function ChatContent() {
   );
 
   return (
-    <PageLayout title="Chat Guard" description="Claude-powered financial summaries, evidence review, and trust-aware guidance">
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          <Badge tone={runtime.runtime_available ? 'success' : 'warning'}>Runtime {runtime.auth_mode}</Badge>
-          <Badge tone={trust.state === 'verified' ? 'success' : 'warning'}>
-            {trust.state === 'verified' ? 'Verified write path enabled' : 'Read-only trust mode'}
-          </Badge>
-          <Badge tone="info">{runtime.model}</Badge>
-          <UsageBadge usage={runtime.usage} />
-        </div>
+    <PageLayout title="Chat Guard" description="Claude-powered financial summaries, evidence review, and trust-aware guidance.">
+      <div className="flex flex-wrap gap-2">
+        <Badge variant={runtime.runtime_available ? 'default' : 'secondary'}>Runtime {runtime.auth_mode}</Badge>
+        <Badge variant={trust.state === 'verified' ? 'default' : 'secondary'}>
+          {trust.state === 'verified' ? 'Verified write path enabled' : 'Read-only trust mode'}
+        </Badge>
+        <Badge variant="outline">{runtime.model}</Badge>
+        <UsageBadge usage={runtime.usage} />
+      </div>
 
-        {error ? <Alert title="Agent request failed" description={error} tone="error" /> : null}
+      {error ? <NoticeCard title="Agent request failed" description={error} tone="destructive" /> : null}
 
-        {!runtime.runtime_available && user ? (
-          <Alert
-            title="Claude runtime unavailable"
-            description={runtime.blocked_reason ?? 'Configure supported Claude Agent SDK auth or use the local Claude CLI dev adapter on localhost.'}
-            tone="warning"
-          />
-        ) : null}
+      {!runtime.runtime_available && user ? (
+        <NoticeCard
+          title="Claude runtime unavailable"
+          description={runtime.blocked_reason ?? 'Configure supported Claude Agent SDK auth or use the local Claude CLI dev adapter on localhost.'}
+          tone="secondary"
+        />
+      ) : null}
 
-        {runtime.agent_access && trust.state !== 'verified' ? (
-          <Alert
-            title="Trust verification limits write actions"
-            description={trust.reason ?? 'You can use informational agent flows, but evidence-affecting actions stay read-only until AadhaarChain verification completes.'}
-            tone="info"
-          />
-        ) : null}
+      {runtime.agent_access && trust.state !== 'verified' ? (
+        <NoticeCard
+          title="Trust verification limits write actions"
+          description={trust.reason ?? 'You can use informational agent flows, but evidence-affecting actions stay read-only until AadhaarChain verification completes.'}
+          tone="outline"
+        />
+      ) : null}
 
-        {messages.length === 0 ? (
-          <Card className="space-y-6 p-8 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(234,106,42,0.12)] text-[var(--ui-primary)]">
-              <Sparkles className="h-6 w-6" />
+      {messages.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-6 py-10 text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Sparkles className="size-6" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-[-0.04em] text-[var(--ui-text)]">How can I help you today?</h2>
-              <p className="text-sm text-[var(--ui-text-secondary)]">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-foreground">How can I help you today?</h2>
+              <p className="text-sm text-muted-foreground">
                 Ask about receipts, transactions, anomalies, and challenge evidence.
               </p>
             </div>
@@ -245,91 +279,102 @@ function ChatContent() {
                 </Button>
               ))}
             </div>
-          </Card>
-        ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
-        <ChatLayout
-          title="FlatWatch Agent"
-          height="640px"
-          actions={session ? <Badge tone="info">Session: {session.session_id.slice(0, 8)}</Badge> : null}
-          footer={
-            <div className="space-y-2">
-              <div className="flex items-end gap-3">
-                <Textarea
-                  id="flatwatch-chat-input"
-                  name="chatPrompt"
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void handleSend();
-                    }
-                  }}
-                  placeholder="Ask about transactions, receipts, challenges, or compliance..."
-                  disabled={!runtime.agent_access || sending || runtimeLoading}
-                  rows={2}
-                  className="min-h-[88px] flex-1"
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={() => void handleSend()}
-                  disabled={!input.trim() || !runtime.agent_access || sending || runtimeLoading}
-                  aria-label="Send message"
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-[var(--ui-text-secondary)]">
-                Trust status controls elevated actions independently.
-              </p>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>FlatWatch Agent</CardTitle>
+              <CardDescription>Trust-aware analysis for receipts, transactions, and dispute workflows.</CardDescription>
             </div>
-          }
-        >
-          <div className="space-y-4">
-            {messages.length === 0 ? (
-              <div className="flex h-full min-h-[280px] items-center justify-center">
-                <Badge tone="neutral">Waiting for your first question</Badge>
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={message.role === 'user' ? 'ml-auto max-w-[85%]' : 'mr-auto max-w-[85%]'}
-                >
-                  <div
-                    className={
-                      message.role === 'user'
-                        ? 'rounded-[var(--ui-radius-lg)] bg-[var(--ui-primary)] px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(234,106,42,0.24)]'
-                        : 'rounded-[var(--ui-radius-lg)] border border-[var(--ui-border)] bg-white px-4 py-3 text-sm text-[var(--ui-text)] shadow-[var(--ui-shadow-sm)]'
-                    }
-                  >
-                    <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] opacity-70">
-                      {message.role === 'user' ? 'You' : 'Assistant'}
-                    </div>
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                  </div>
-                </div>
-              ))
-            )}
-
-            {streamingText ? (
-              <div className="mr-auto max-w-[85%] rounded-[var(--ui-radius-lg)] border border-[var(--ui-border)] bg-white px-4 py-3 text-sm text-[var(--ui-text)] shadow-[var(--ui-shadow-sm)]">
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] opacity-70">Assistant</div>
-                <div className="whitespace-pre-wrap">{streamingText}</div>
-              </div>
-            ) : null}
-
-            {sending && !streamingText ? (
-              <div className="mr-auto max-w-[85%] rounded-[var(--ui-radius-lg)] border border-[var(--ui-border)] bg-white px-4 py-3 text-sm text-[var(--ui-text-secondary)] shadow-[var(--ui-shadow-sm)]">
-                Assistant is thinking…
-              </div>
-            ) : null}
-            <div ref={messagesEndRef} />
+            <div className="flex flex-wrap items-center gap-2">
+              {session ? <Badge variant="outline">Session: {session.session_id.slice(0, 8)}</Badge> : null}
+              {runtimeLoading ? <Spinner /> : null}
+            </div>
           </div>
-        </ChatLayout>
-      </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ScrollArea className="h-[480px] rounded-3xl border border-border bg-secondary/35 p-4">
+            <div className="space-y-4">
+              {messages.length === 0 ? (
+                <div className="flex min-h-[280px] items-center justify-center">
+                  <Badge variant="outline">Waiting for your first question</Badge>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={message.role === 'user' ? 'ml-auto max-w-[85%]' : 'mr-auto max-w-[85%]'}
+                  >
+                    <div
+                      className={
+                        message.role === 'user'
+                          ? 'rounded-3xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-md'
+                          : 'rounded-3xl border border-border bg-card px-4 py-3 text-sm text-foreground shadow-sm'
+                      }
+                    >
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                        {message.role === 'user' ? 'You' : 'Assistant'}
+                      </div>
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {streamingText ? (
+                <div className="mr-auto max-w-[85%] rounded-3xl border border-border bg-card px-4 py-3 text-sm text-foreground shadow-sm">
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">Assistant</div>
+                  <div className="whitespace-pre-wrap">{streamingText}</div>
+                </div>
+              ) : null}
+
+              {sending && !streamingText ? (
+                <div className="mr-auto max-w-[85%] rounded-3xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                  Assistant is thinking…
+                </div>
+              ) : null}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+
+          <div className="space-y-2">
+            <div className="flex items-end gap-3">
+              <Textarea
+                id="flatwatch-chat-input"
+                name="chatPrompt"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    void handleSend();
+                  }
+                }}
+                placeholder="Ask about transactions, receipts, challenges, or compliance..."
+                disabled={!runtime.agent_access || sending || runtimeLoading}
+                rows={2}
+                className="min-h-[88px] flex-1"
+              />
+              <Button
+                type="button"
+                size="icon-lg"
+                onClick={() => void handleSend()}
+                disabled={!input.trim() || !runtime.agent_access || sending || runtimeLoading}
+                aria-label="Send message"
+              >
+                <ArrowUp className="size-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Trust status controls elevated actions independently.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </PageLayout>
   );
 }

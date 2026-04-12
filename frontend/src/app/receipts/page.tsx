@@ -1,14 +1,31 @@
-// Receipt Snap - Upload and manage receipts
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { CheckCircle2, FileText, ScanSearch } from 'lucide-react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { TrustPanel } from '@/components/trust/TrustPanel';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
-import { receiptsApi } from '@/lib/api';
-import type { Receipt } from '@/lib/api';
+import { receiptsApi, type Receipt } from '@/lib/api';
 import { useTrustState } from '@/lib/useTrustState';
-import { useWallet } from '@solana/wallet-adapter-react';
+
+function getMatchBadge(status?: Receipt['match_status']) {
+  switch (status) {
+    case 'matched':
+      return { label: 'Matched', variant: 'default' as const };
+    case 'partial':
+      return { label: 'Partial match', variant: 'secondary' as const };
+    case 'unmatched':
+      return { label: 'Unmatched', variant: 'destructive' as const };
+    default:
+      return { label: 'Uploaded', variant: 'outline' as const };
+  }
+}
 
 function ReceiptsContent() {
   const { publicKey } = useWallet();
@@ -19,26 +36,29 @@ function ReceiptsContent() {
   const [error, setError] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  useEffect(() => {
-    loadReceipts();
-  }, []);
-
   const loadReceipts = async () => {
     try {
       setError(null);
       const data = await receiptsApi.list();
       setReceipts(Array.isArray(data) ? data : []);
-      setLoading(false);
     } catch {
-      setError('Failed to load receipts');
+      setError('Failed to load receipts.');
       setReceipts([]);
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    void loadReceipts();
+  }, []);
+
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
     if (trust.state !== 'verified') {
       setError(trust.reason || 'Complete AadhaarChain verification before uploading evidence.');
       return;
@@ -47,10 +67,10 @@ function ReceiptsContent() {
     setUploading(true);
     try {
       await receiptsApi.upload(file);
-      setFileInputKey(prev => prev + 1);
+      setFileInputKey((current) => current + 1);
       await loadReceipts();
     } catch {
-      setError('Upload failed');
+      setError('Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -73,142 +93,139 @@ function ReceiptsContent() {
                 filename: receipt.filename,
                 upload_date: receipt.upload_date,
               }
-            : receipt
-        )
+            : receipt,
+        ),
       );
     } catch {
-      setError('OCR processing failed');
-    }
-  };
-
-  const getMatchStatusColor = (status?: string) => {
-    switch (status) {
-      case 'matched': return 'bg-[rgb(76,175,80)]';
-      case 'partial': return 'bg-[rgb(255,152,0)]';
-      case 'unmatched': return 'bg-[rgb(244,67,54)]';
-      default: return 'bg-[rgb(158,158,158)]';
+      setError('OCR processing failed.');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 animate-pulse rounded-full bg-[rgb(255,97,26)]" />
-          <span className="text-[#999]">Loading...</span>
-        </div>
+      <div className="premium-shell flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex items-center justify-center gap-3 py-10 text-muted-foreground">
+            <Spinner />
+            Loading receipts…
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <PageLayout title="Receipt Snap" description="Upload and verify receipts">
+    <PageLayout title="Receipts" description="Upload evidence, process OCR, and reconcile receipts with transaction activity.">
       <TrustPanel
         state={trust.state}
         loading={trust.loading}
         error={trust.error}
         reason={trust.reason}
         walletConnected={Boolean(publicKey)}
-        actionLabel={publicKey ? 'Resolve evidence trust in AadhaarChain' : null}
+        actionLabel={publicKey ? 'Review trust in AadhaarChain' : null}
       />
 
-      {/* Error message */}
-      {error && (
-        <div className="rounded-2xl bg-[rgb(255,243,224)] p-4 text-[rgb(255,97,26)]">
-          {error}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Evidence intake</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Verified trust unlocks receipt uploads and OCR-assisted matching.
+          </p>
         </div>
-      )}
-
-      {/* Upload Section */}
-      <div className="w-full rounded-3xl bg-white p-8 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
-        <h2 className="text-xl font-medium text-[#333]">Upload Receipt</h2>
-        <p className="mt-2 text-sm text-[#999]">Supports PDF, PNG, JPG, Excel, CSV</p>
-
-        <div className="mt-6">
+        <label className="inline-flex">
           <input
             key={fileInputKey}
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv"
+            accept="image/*,.pdf"
+            className="hidden"
             onChange={handleFileUpload}
             disabled={uploading || trust.state !== 'verified'}
-            className="hidden"
-            id="file-upload"
           />
-          <label
-            htmlFor="file-upload"
-            className={`flex h-12 w-full items-center justify-center rounded-full px-6 font-medium text-white transition-all ${
-              uploading || trust.state !== 'verified'
-                ? 'cursor-not-allowed bg-[rgb(238,238,238)] text-[#999]'
-                : 'cursor-pointer bg-[rgb(255,97,26)] shadow-[0_2px_8px_rgba(255,97,26,0.3)] hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95'
-            }`}
-          >
-            {uploading
-              ? 'Uploading...'
-              : trust.state !== 'verified'
-                ? 'Verified trust required to upload'
-                : 'Choose File to Upload'}
-          </label>
-        </div>
+          <span className="inline-flex">
+            <Button type="button" disabled={uploading || trust.state !== 'verified'}>
+              {uploading ? 'Uploading…' : trust.state === 'verified' ? 'Upload receipt' : 'Trust required'}
+            </Button>
+          </span>
+        </label>
       </div>
 
-      {/* Receipts List */}
-      <div>
-        <h2 className="text-xl font-medium text-[#333]">Receipts ({receipts.length})</h2>
+      {error ? (
+        <Card className="border-destructive/20">
+          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+        </Card>
+      ) : null}
 
-        {receipts.length === 0 ? (
-          <div className="mt-6 text-center text-[#999]">No receipts uploaded yet</div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {receipts.map((receipt) => (
-              <div
-                key={receipt.filename}
-                className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-[#333] truncate">{receipt.filename}</h3>
-                      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${getMatchStatusColor(receipt.match_status)}`} />
+      {receipts.length === 0 ? (
+        <Card>
+          <CardContent className="py-0">
+            <Empty className="border-border py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FileText className="size-5" />
+                </EmptyMedia>
+                <EmptyTitle>No receipts uploaded</EmptyTitle>
+                <EmptyDescription>
+                  Start with a verified trust state, then upload evidence to build the reconciliation trail.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent />
+            </Empty>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {receipts.map((receipt) => {
+            const match = getMatchBadge(receipt.match_status);
+
+            return (
+              <Card key={receipt.filename} size="sm">
+                <CardHeader className="gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <CardTitle className="truncate text-base font-medium">{receipt.filename}</CardTitle>
+                      <CardDescription>
+                        {new Date(receipt.upload_date).toLocaleDateString()}
+                      </CardDescription>
                     </div>
-                    <p className="mt-1 text-sm text-[#999]">
-                      {new Date(receipt.upload_date).toLocaleDateString()}
-                    </p>
-
-                    {receipt.extracted_amount && (
-                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                        <span className="text-[#999]">₹{receipt.extracted_amount}</span>
-                        {receipt.extracted_vendor && <span className="text-[#333]">{receipt.extracted_vendor}</span>}
-                        {receipt.extracted_date && <span className="text-[#999]">{receipt.extracted_date}</span>}
-                        {receipt.matched_transaction_id && <span className="text-[rgb(76,175,80)]">TXN #{receipt.matched_transaction_id}</span>}
-                      </div>
-                    )}
+                    <Badge variant={match.variant}>{match.label}</Badge>
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  {receipt.extracted_amount ? (
+                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                      <Badge variant="outline">₹{receipt.extracted_amount}</Badge>
+                      {receipt.extracted_vendor ? <Badge variant="outline">{receipt.extracted_vendor}</Badge> : null}
+                      {receipt.extracted_date ? <Badge variant="outline">{receipt.extracted_date}</Badge> : null}
+                      {receipt.matched_transaction_id ? (
+                        <Badge variant="default">TXN #{receipt.matched_transaction_id}</Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                  {!receipt.extracted_amount && (
-                    <button
-                      onClick={() => handleProcessOCR(receipt.filename)}
+                  {!receipt.extracted_amount ? (
+                    <Button
+                      type="button"
+                      variant={trust.state === 'verified' ? 'secondary' : 'outline'}
                       disabled={trust.state !== 'verified'}
-                      className={`flex-shrink-0 h-10 rounded-full px-4 text-sm font-medium transition-all ${
-                        trust.state !== 'verified'
-                          ? 'cursor-not-allowed bg-[rgb(238,238,238)] text-[#999]'
-                          : 'bg-[rgb(255,97,26)] text-white shadow-[0_2px_8px_rgba(255,97,26,0.3)] hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95'
-                      }`}
+                      onClick={() => void handleProcessOCR(receipt.filename)}
                     >
-                      {trust.state !== 'verified' ? 'Trust required' : 'Process'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                      <ScanSearch className="size-4" />
+                      {trust.state === 'verified' ? 'Process OCR' : 'Trust required'}
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Footer status */}
-      <div className="flex items-center justify-center gap-2 rounded-full bg-[rgb(238,238,238)] px-4 py-3">
-        <span className="h-2 w-2 rounded-full bg-[rgb(76,175,80)]" />
-        <span className="text-sm text-[#999]">System online</span>
-      </div>
+      <Card size="sm">
+        <CardContent className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+          <CheckCircle2 className="size-4 text-primary" />
+          Evidence pipeline online
+        </CardContent>
+      </Card>
     </PageLayout>
   );
 }

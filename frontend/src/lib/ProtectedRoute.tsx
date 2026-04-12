@@ -1,48 +1,72 @@
 'use client';
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from './auth';
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
+function CenteredState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="premium-shell flex min-h-screen items-center justify-center px-4 py-10">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-semibold tracking-[-0.04em]">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        {action ? <CardContent className="flex justify-center pt-0">{action}</CardContent> : null}
+      </Card>
+    </div>
+  );
+}
+
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading, login, error } = useAuth();
 
-  // Show loading while validating session
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 animate-pulse rounded-full bg-[rgb(255,97,26)]" />
-          <span className="text-[#999]">Verifying session...</span>
-        </div>
-      </div>
+      <CenteredState
+        title="Verifying session"
+        description={
+          <span className="inline-flex items-center justify-center gap-2">
+            <Spinner className="size-4" />
+            Checking the local FlatWatch operator session.
+          </span>
+        }
+      />
     );
   }
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="text-center space-y-4">
-          <div className="space-y-2">
-            <p className="text-[#333]">Sign in required</p>
-            <p className="text-[#999]">Use the local development account to access FlatWatch.</p>
-            {error ? <p className="text-sm text-[rgb(255,97,26)]">{error}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={() => void login()}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-[rgb(255,97,26)] px-6 font-medium text-white shadow-[0_2px_8px_rgba(255,97,26,0.3)] transition-all hover:shadow-[0_4px_12px_rgba(255,97,26,0.4)] active:scale-95"
-          >
+      <CenteredState
+        title="Sign in required"
+        description={
+          <span className="space-y-2 text-center">
+            <span className="block">Use the local development account to access FlatWatch.</span>
+            {error ? <span className="block text-destructive">{error}</span> : null}
+          </span>
+        }
+        action={
+          <Button type="button" onClick={() => void login()}>
             Sign in
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
     );
   }
 
-  // User is authenticated, render children
   return <>{children}</>;
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { Badge, Card } from '@/lib/portfolio-ui';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import type { Transaction } from '@/lib/api';
 
 interface TransactionListProps {
@@ -25,59 +26,60 @@ function formatDate(dateString: string) {
 }
 
 export function TransactionList({ transactions }: TransactionListProps) {
-  if (transactions.length === 0) {
-    return (
-      <Card className="p-8 text-center">
-        <div className="text-sm text-[var(--ui-text-secondary)]">No transactions yet</div>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-4">
+    <section className="space-y-4">
       <div>
-        <div className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--ui-text-muted)]">Activity</div>
-        <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-[var(--ui-text)]">Recent transactions</h2>
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Activity</div>
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">Recent transactions</h2>
       </div>
 
-      <div className="space-y-3">
-        {transactions.map((txn) => (
-          <Card key={txn.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={txn.verified ? 'success' : 'warning'}>{txn.verified ? 'Verified' : 'Unverified'}</Badge>
-                <Badge tone={txn.transaction_type === 'inflow' ? 'success' : 'neutral'}>
-                  {txn.transaction_type === 'inflow' ? 'Inflow' : 'Outflow'}
-                </Badge>
-              </div>
-              <div className="text-base font-semibold text-[var(--ui-text)]">{txn.description || 'Transaction'}</div>
-              <div className="text-sm text-[var(--ui-text-secondary)]">
-                {(txn.vpa || 'Unknown')} · {formatDate(txn.timestamp)}
-              </div>
-              {(txn.entered_by_name || txn.approved_by_name) ? (
-                <div className="text-xs text-[var(--ui-text-muted)]">
-                  {txn.entered_by_name ? `Entered by ${txn.entered_by_name} (${txn.entered_by_role ?? 'unknown'})` : null}
-                  {txn.entered_by_name && txn.approved_by_name ? ' · ' : null}
-                  {txn.approved_by_name ? `Approved by ${txn.approved_by_name} (${txn.approved_by_role ?? 'unknown'})` : null}
+      {transactions.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No transactions yet
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {transactions.map((txn) => (
+            <Card key={txn.id} size="sm">
+              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={txn.verified ? 'default' : 'secondary'}>
+                      {txn.verified ? 'Verified' : 'Unverified'}
+                    </Badge>
+                    <Badge variant={txn.transaction_type === 'inflow' ? 'outline' : 'secondary'}>
+                      {txn.transaction_type === 'inflow' ? 'Inflow' : 'Outflow'}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <CardTitle className="text-base font-medium">
+                      {txn.description || 'Transaction'}
+                    </CardTitle>
+                    <CardDescription>
+                      {(txn.vpa || 'Unknown')} · {formatDate(txn.timestamp)}
+                    </CardDescription>
+                    {(txn.entered_by_name || txn.approved_by_name) ? (
+                      <div className="text-xs text-muted-foreground">
+                        {txn.entered_by_name ? `Entered by ${txn.entered_by_name} (${txn.entered_by_role ?? 'unknown'})` : null}
+                        {txn.entered_by_name && txn.approved_by_name ? ' · ' : null}
+                        {txn.approved_by_name ? `Approved by ${txn.approved_by_name} (${txn.approved_by_role ?? 'unknown'})` : null}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              ) : null}
-            </div>
-
-            <div className="text-right">
-              <div
-                className={
-                  txn.transaction_type === 'inflow'
-                    ? 'text-2xl font-bold tracking-[-0.03em] text-[var(--ui-success)]'
-                    : 'text-2xl font-bold tracking-[-0.03em] text-[var(--ui-text)]'
-                }
-              >
-                {txn.transaction_type === 'inflow' ? '+' : '-'}
-                {formatCurrency(txn.amount)}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
+                <div className="text-left sm:text-right">
+                  <div className={txn.transaction_type === 'inflow' ? 'text-2xl font-semibold tracking-[-0.04em] text-primary' : 'text-2xl font-semibold tracking-[-0.04em] text-foreground'}>
+                    {txn.transaction_type === 'inflow' ? '+' : '-'}
+                    {formatCurrency(txn.amount)}
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
