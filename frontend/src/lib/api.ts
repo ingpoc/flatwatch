@@ -1,5 +1,7 @@
 // API client for FlatWatch backend
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:43104';
+import { resolveFlatwatchApiBase } from './apiBase';
+
+const API_BASE = resolveFlatwatchApiBase();
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 
 function getAuthToken(): string | null {
@@ -57,7 +59,7 @@ export interface Transaction {
   approved_by_role?: string | null;
 }
 
-interface FinancialSummary {
+export interface FinancialSummary {
   balance: number;
   total_inflow: number;
   total_outflow: number;

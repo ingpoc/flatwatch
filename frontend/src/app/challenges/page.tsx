@@ -14,8 +14,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
 import { useAuth } from '@/lib/auth';
-import { challengesApi, transactionsApi } from '@/lib/api';
-import type { Challenge, Transaction } from '@/lib/api';
+import { challengesApi } from '@/lib/api';
+import type { Challenge } from '@/lib/api';
+import { useFlatwatchData } from '@/lib/useFlatwatchData';
 import { useTrustState } from '@/lib/useTrustState';
 
 function getChallengeBadge(status: Challenge['status']) {
@@ -41,10 +42,10 @@ function ChallengesContent() {
   const { user } = useAuth();
   const { publicKey } = useWallet();
   const trust = useTrustState(publicKey?.toBase58() ?? null);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { challenges, transactions, refreshChallenges, refreshTransactions } = useFlatwatchData();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError || challenges.error || transactions.error;
+  const loading = (!challenges.loaded || !transactions.loaded) && !error;
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedTxnId, setSelectedTxnId] = useState<number | null>(null);
   const [reason, setReason] = useState('');
@@ -52,31 +53,13 @@ function ChallengesContent() {
   const canResolveChallenges = user?.role === 'admin' || user?.role === 'super_admin';
 
   const transactionMap = useMemo(
-    () => new Map(transactions.map((transaction) => [transaction.id, transaction])),
-    [transactions],
+    () => new Map(transactions.data.map((transaction) => [transaction.id, transaction])),
+    [transactions.data],
   );
 
-  const loadData = async () => {
-    try {
-      setError(null);
-      const [challengeData, transactionData] = await Promise.all([
-        challengesApi.list(),
-        transactionsApi.list({ limit: 50 }),
-      ]);
-      setChallenges(Array.isArray(challengeData) ? challengeData : []);
-      setTransactions(Array.isArray(transactionData) ? transactionData : []);
-    } catch {
-      setError('Failed to load challenges.');
-      setChallenges([]);
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void loadData();
-  }, []);
+    void Promise.all([refreshChallenges(), refreshTransactions()]);
+  }, [refreshChallenges, refreshTransactions]);
 
   const handleCreateChallenge = async () => {
     if (!selectedTxnId || !reason.trim() || submitting) {
@@ -84,19 +67,20 @@ function ChallengesContent() {
     }
 
     if (trust.state !== 'verified') {
-      setError(trust.reason || 'Complete AadhaarChain verification before filing a challenge.');
+      setActionError(trust.reason || 'Complete AadhaarChain verification before filing a challenge.');
       return;
     }
 
     setSubmitting(true);
     try {
+      setActionError(null);
       await challengesApi.create(selectedTxnId, reason.trim());
       setShowNewForm(false);
       setSelectedTxnId(null);
       setReason('');
-      await loadData();
+      await refreshChallenges(true);
     } catch {
-      setError('Failed to create challenge.');
+      setActionError('Failed to create challenge.');
     } finally {
       setSubmitting(false);
     }
@@ -104,7 +88,7 @@ function ChallengesContent() {
 
   const handleResolve = async (challengeId: number) => {
     if (trust.state !== 'verified') {
-      setError(trust.reason || 'Complete AadhaarChain verification before resolving a challenge.');
+      setActionError(trust.reason || 'Complete AadhaarChain verification before resolving a challenge.');
       return;
     }
 
@@ -114,10 +98,11 @@ function ChallengesContent() {
     }
 
     try {
+      setActionError(null);
       await challengesApi.resolve(challengeId, evidence);
-      await loadData();
+      await refreshChallenges(true);
     } catch {
-      setError('Failed to resolve challenge.');
+      setActionError('Failed to resolve challenge.');
     }
   };
 
@@ -184,7 +169,7 @@ function ChallengesContent() {
                       <SelectValue placeholder="Select a transaction" />
                     </SelectTrigger>
                     <SelectContent>
-                      {transactions.map((transaction) => (
+                      {transactions.data.map((transaction) => (
                         <SelectItem key={transaction.id} value={String(transaction.id)}>
                           {formatCurrency(transaction.amount)} · {transaction.description || 'No description'}
                         </SelectItem>
@@ -219,7 +204,7 @@ function ChallengesContent() {
         </Card>
       ) : null}
 
-      {challenges.length === 0 ? (
+      {challenges.data.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <FileWarning className="size-8 text-muted-foreground" />
@@ -233,7 +218,7 @@ function ChallengesContent() {
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
-          {challenges.map((challenge) => {
+          {challenges.data.map((challenge) => {
             const transaction = transactionMap.get(challenge.transaction_id);
             const badge = getChallengeBadge(challenge.status);
 

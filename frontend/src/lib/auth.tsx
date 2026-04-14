@@ -1,12 +1,15 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { resolveFlatwatchApiBase } from './apiBase';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:43104';
+const API_BASE = resolveFlatwatchApiBase();
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 const DEV_LOGIN_EMAIL = process.env.NEXT_PUBLIC_DEV_USER_EMAIL || 'resident@flatwatch.test';
 const DEV_LOGIN_PASSWORD = process.env.NEXT_PUBLIC_DEV_USER_PASSWORD || 'dev-local';
 const BACKEND_UNAVAILABLE_MESSAGE = `FlatWatch backend unavailable at ${API_BASE}. Start the local API and try again.`;
+const SESSION_VERIFY_TIMEOUT_MESSAGE = `FlatWatch session verification timed out at ${API_BASE}. Retry or sign in again.`;
+const SESSION_VERIFY_TIMEOUT_MS = 8000;
 
 export interface User {
   id: string;
@@ -39,11 +42,29 @@ interface AuthProviderProps {
 }
 
 function formatAuthError(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return SESSION_VERIFY_TIMEOUT_MESSAGE;
+  }
+
   if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
     return BACKEND_UNAVAILABLE_MESSAGE;
   }
 
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -61,12 +82,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/verify`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/auth/verify`, {
         method: 'GET',
+        cache: 'no-store',
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      }, SESSION_VERIFY_TIMEOUT_MS);
 
       if (!response.ok) {
         if (response.status === 401) {

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import functools
 import importlib.util
 import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
+from urllib.parse import urlsplit
 
 from fastapi import Request
 
@@ -41,6 +43,40 @@ def _host_looks_local(value: Optional[str]) -> bool:
         return False
     host = value.split("//")[-1].split("/")[0].split(":")[0].strip().lower()
     return host in {"localhost", "127.0.0.1", "::1"}
+
+
+def _normalize_origin(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    if "://" not in candidate:
+        candidate = f"https://{candidate}"
+    try:
+        parts = urlsplit(candidate)
+        if not parts.scheme or not parts.netloc:
+            return None
+        return f"{parts.scheme}://{parts.netloc}".lower()
+    except Exception:
+        return None
+
+
+@functools.lru_cache(maxsize=1)
+def _allowed_origins() -> set[str]:
+    return {
+        origin
+        for origin in (_normalize_origin(value) for value in os.getenv("CLAUDE_AGENT_ALLOWED_ORIGINS", "").split(","))
+        if origin
+    }
+
+
+def request_matches_allowed_origin(request: Optional[Request]) -> bool:
+    if request is None:
+        return False
+
+    origin = _normalize_origin(request.headers.get("origin"))
+    return bool(origin and origin in _allowed_origins())
 
 
 def request_looks_local(request: Optional[Request]) -> bool:
@@ -88,8 +124,8 @@ def resolve_runtime_policy(request: Optional[Request] = None) -> AgentRuntimePol
     requested_auth_mode = _requested_auth_mode()
     has_api_key = bool(os.getenv("ANTHROPIC_API_KEY"))
     allow_local_cli = _truthy(os.getenv("CLAUDE_AGENT_ALLOW_LOCAL_CLI_AUTH"), True)
-    non_production = os.getenv("NODE_ENV", os.getenv("ENV", "development")) != "production"
     local_request = request_looks_local(request)
+    allowed_origin_request = request_matches_allowed_origin(request)
     cli_path = _find_claude_code_executable()
 
     if not _sdk_package_available():
@@ -145,7 +181,7 @@ def resolve_runtime_policy(request: Optional[Request] = None) -> AgentRuntimePol
                 blocked_reason="Claude Code CLI auth requires the local `claude` executable to be installed or CLAUDE_CODE_EXECUTABLE to be set.",
                 claude_code_executable_path=None,
             )
-        if allow_local_cli and non_production and local_request:
+        if allow_local_cli and (local_request or allowed_origin_request or request is None):
             return AgentRuntimePolicy(
                 runtime_available=True,
                 auth_mode="local_cli",
@@ -157,7 +193,10 @@ def resolve_runtime_policy(request: Optional[Request] = None) -> AgentRuntimePol
             runtime_available=False,
             auth_mode="unavailable",
             model=DEFAULT_MODEL,
-            blocked_reason="Claude Code CLI auth is restricted to localhost development. Configure API-key or cloud-provider auth for deployed runtimes.",
+            blocked_reason=(
+                "Claude Code CLI auth is restricted to localhost or CLAUDE_AGENT_ALLOWED_ORIGINS. "
+                "Configure an allowed frontend origin or switch to API-key/cloud-provider auth."
+            ),
             claude_code_executable_path=cli_path,
         )
 

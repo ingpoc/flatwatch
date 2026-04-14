@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SkipLink } from "@/components/a11y";
 import { AuthProvider } from "@/lib/auth";
+import { FlatwatchDataProvider } from "@/lib/useFlatwatchData";
+import { TrustStateProvider } from "@/lib/useTrustState";
 import { WalletProvider } from "@/lib/wallet";
 
 export const metadata: Metadata = {
@@ -25,10 +27,14 @@ export default function RootLayout({
       <body className="antialiased">
         <WalletProvider>
           <AuthProvider>
-            <SkipLink />
-            <main id="main-content">
-              {children}
-            </main>
+            <TrustStateProvider>
+              <FlatwatchDataProvider>
+                <SkipLink />
+                <main id="main-content">
+                  {children}
+                </main>
+              </FlatwatchDataProvider>
+            </TrustStateProvider>
           </AuthProvider>
         </WalletProvider>
       </body>

@@ -18,3 +18,19 @@ API_VERSION = "0.1.0"
 # SSO Identity Provider
 IDENTITY_URL = os.getenv("IDENTITY_URL", "https://aadharcha.in")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:43105")
+
+
+def get_cors_origins() -> list[str]:
+    configured = os.getenv("CORS_ORIGINS")
+    if configured:
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return [
+        "http://localhost:43100",
+        "http://127.0.0.1:43100",
+        "http://localhost:43102",
+        "http://127.0.0.1:43102",
+        "http://localhost:43103",
+        "http://127.0.0.1:43103",
+        "http://localhost:43105",
+        "http://127.0.0.1:43105",
+    ]

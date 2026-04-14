@@ -11,6 +11,7 @@ Object.defineProperty(window, 'location', {
 
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 const BACKEND_UNAVAILABLE_MESSAGE = 'FlatWatch backend unavailable at http://127.0.0.1:43104. Start the local API and try again.';
+const SESSION_VERIFY_TIMEOUT_MESSAGE = 'FlatWatch session verification timed out at http://127.0.0.1:43104. Retry or sign in again.';
 
 describe('flatwatch auth provider', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -95,6 +96,18 @@ describe('flatwatch auth provider', () => {
 
     expect(result.current.user).toBeNull();
     expect(result.current.error).toBe(BACKEND_UNAVAILABLE_MESSAGE);
+  });
+
+  it('exits the loading state when session validation is aborted', async () => {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'demo-token');
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new DOMException('timed out', 'AbortError'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.error).toBe(SESSION_VERIFY_TIMEOUT_MESSAGE);
   });
 
   it('logs in through the local backend and stores the token', async () => {

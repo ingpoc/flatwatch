@@ -4,9 +4,7 @@ import { ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import type { PortfolioTrustState } from '@/lib/trust';
-
-const IDENTITY_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://127.0.0.1:43100';
+import { resolveIdentityWebUrl, type PortfolioTrustState } from '@/lib/trust';
 
 const STATE_META: Record<
   PortfolioTrustState,
@@ -114,7 +112,7 @@ export function TrustPanel({
           <Button
             type="button"
             variant={state === 'verified' ? 'secondary' : 'default'}
-            onClick={() => window.open(IDENTITY_URL, '_blank', 'noopener,noreferrer')}
+            onClick={() => window.open(resolveIdentityWebUrl(), '_blank', 'noopener,noreferrer')}
           >
             {actionLabel}
           </Button>

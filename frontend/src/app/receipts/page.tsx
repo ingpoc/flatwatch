@@ -12,6 +12,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
 import { receiptsApi, type Receipt } from '@/lib/api';
+import { useFlatwatchData } from '@/lib/useFlatwatchData';
 import { useTrustState } from '@/lib/useTrustState';
 
 function getMatchBadge(status?: Receipt['match_status']) {
@@ -30,28 +31,15 @@ function getMatchBadge(status?: Receipt['match_status']) {
 function ReceiptsContent() {
   const { publicKey } = useWallet();
   const trust = useTrustState(publicKey?.toBase58() ?? null);
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { receipts, refreshReceipts } = useFlatwatchData();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loading = !receipts.loaded && !(error || receipts.error);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  const loadReceipts = async () => {
-    try {
-      setError(null);
-      const data = await receiptsApi.list();
-      setReceipts(Array.isArray(data) ? data : []);
-    } catch {
-      setError('Failed to load receipts.');
-      setReceipts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void loadReceipts();
-  }, []);
+    void refreshReceipts();
+  }, [refreshReceipts]);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -66,9 +54,10 @@ function ReceiptsContent() {
 
     setUploading(true);
     try {
+      setError(null);
       await receiptsApi.upload(file);
       setFileInputKey((current) => current + 1);
-      await loadReceipts();
+      await refreshReceipts(true);
     } catch {
       setError('Upload failed.');
     } finally {
@@ -83,19 +72,9 @@ function ReceiptsContent() {
     }
 
     try {
-      const processedReceipt = await receiptsApi.process(filename);
-      setReceipts((current) =>
-        current.map((receipt) =>
-          receipt.filename === filename
-            ? {
-                ...receipt,
-                ...processedReceipt,
-                filename: receipt.filename,
-                upload_date: receipt.upload_date,
-              }
-            : receipt,
-        ),
-      );
+      setError(null);
+      await receiptsApi.process(filename);
+      await refreshReceipts(true);
     } catch {
       setError('OCR processing failed.');
     }
@@ -149,13 +128,13 @@ function ReceiptsContent() {
         </label>
       </div>
 
-      {error ? (
+      {error || receipts.error ? (
         <Card className="border-destructive/20">
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+          <CardContent className="py-4 text-sm text-destructive">{error || receipts.error}</CardContent>
         </Card>
       ) : null}
 
-      {receipts.length === 0 ? (
+      {receipts.data.length === 0 ? (
         <Card>
           <CardContent className="py-0">
             <Empty className="border-border py-12">
@@ -174,7 +153,7 @@ function ReceiptsContent() {
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {receipts.map((receipt) => {
+          {receipts.data.map((receipt) => {
             const match = getMatchBadge(receipt.match_status);
 
             return (

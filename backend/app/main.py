@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import API_TITLE, API_VERSION
+from .config import API_TITLE, API_VERSION, get_cors_origins
 from .database import init_db, get_db_connection
 from .models import HealthResponse
 from .routers import auth, admin, transactions, receipts, ocr, chat, challenges, audit, scanner, notifications, control_plane
@@ -30,16 +30,7 @@ app = FastAPI(
 # Configure CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:43100",
-        "http://127.0.0.1:43100",
-        "http://localhost:43102",
-        "http://127.0.0.1:43102",
-        "http://localhost:43103",
-        "http://127.0.0.1:43103",
-        "http://localhost:43105",
-        "http://127.0.0.1:43105",
-    ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
