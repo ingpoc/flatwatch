@@ -1,8 +1,9 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { resolveFlatwatchApiBase } from './apiBase';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:43104';
+const API_BASE = resolveFlatwatchApiBase();
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 const DEV_LOGIN_EMAIL = process.env.NEXT_PUBLIC_DEV_USER_EMAIL || 'resident@flatwatch.test';
 const DEV_LOGIN_PASSWORD = process.env.NEXT_PUBLIC_DEV_USER_PASSWORD || 'dev-local';

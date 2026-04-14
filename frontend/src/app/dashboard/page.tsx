@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -11,53 +11,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
-import { transactionsApi, type Transaction } from '@/lib/api';
+import { transactionsApi } from '@/lib/api';
+import { useFlatwatchData } from '@/lib/useFlatwatchData';
 import { useTrustState } from '@/lib/useTrustState';
-
-interface Summary {
-  balance: number;
-  total_inflow: number;
-  total_outflow: number;
-  unmatched_transactions: number;
-  recent_transactions_24h: number;
-}
 
 function DashboardContent() {
   const { publicKey } = useWallet();
   const trust = useTrustState(publicKey?.toBase58() ?? null);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadData() {
-    try {
-      setError(null);
-      const summaryData = await transactionsApi.getSummary();
-      setSummary(summaryData);
-      const txns = await transactionsApi.list({ limit: 10 });
-      setTransactions(txns);
-    } catch {
-      setError('Failed to load dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { dashboardSummary, dashboardTransactions, refreshDashboard, refreshTransactions } = useFlatwatchData();
+  const summary = dashboardSummary.data;
+  const transactions = dashboardTransactions.data;
+  const error = dashboardSummary.error || dashboardTransactions.error;
+  const loading = (!dashboardSummary.loaded || !dashboardTransactions.loaded) && !error;
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadData();
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
+    void refreshDashboard();
+  }, [refreshDashboard]);
 
   const handleSync = async () => {
     try {
       await transactionsApi.sync();
-      await loadData();
+      await Promise.all([refreshDashboard(true), refreshTransactions(true)]);
     } catch {
-      setError('Sync failed.');
+      // Preserve the last good dashboard state when sync fails.
     }
   };
 
@@ -80,7 +56,7 @@ function DashboardContent() {
         <Card className="w-full max-w-md border-destructive/20">
           <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
             <p className="text-sm text-destructive">{error}</p>
-            <Button type="button" onClick={() => void loadData()}>
+            <Button type="button" onClick={() => void refreshDashboard(true)}>
               Retry
             </Button>
           </CardContent>

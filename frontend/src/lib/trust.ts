@@ -32,8 +32,34 @@ export interface TrustSnapshot {
   trust: TrustSurface | null;
 }
 
-const IDENTITY_WEB_URL = process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || 'http://127.0.0.1:43100';
-const TRUST_API_URL = process.env.NEXT_PUBLIC_TRUST_API_URL || 'http://127.0.0.1:43101';
+const LOCAL_IDENTITY_WEB_URL = 'http://127.0.0.1:43100';
+const DEPLOYED_IDENTITY_WEB_URL = 'https://aadharcha.in';
+const LOCAL_TRUST_API_URL = 'http://127.0.0.1:43101';
+const DEPLOYED_TRUST_API_URL = 'https://identity-aadhar-gateway.onrender.com';
+
+export function resolveIdentityWebUrl(): string {
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || LOCAL_IDENTITY_WEB_URL;
+    }
+  }
+
+  return process.env.NEXT_PUBLIC_IDENTITY_WEB_URL || DEPLOYED_IDENTITY_WEB_URL;
+}
+
+export function resolveTrustApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return process.env.NEXT_PUBLIC_TRUST_API_URL || LOCAL_TRUST_API_URL;
+    }
+  }
+
+  return process.env.NEXT_PUBLIC_TRUST_API_URL || DEPLOYED_TRUST_API_URL;
+}
+
+const TRUST_API_URL = resolveTrustApiUrl();
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { credentials: 'include' });
@@ -79,4 +105,6 @@ export async function fetchTrustSnapshot(subjectId: string): Promise<TrustSnapsh
   };
 }
 
-export { IDENTITY_WEB_URL, TRUST_API_URL };
+export const IDENTITY_WEB_URL = resolveIdentityWebUrl();
+
+export { TRUST_API_URL };

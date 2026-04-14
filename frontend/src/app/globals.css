@@ -51,6 +51,25 @@
 }
 
 :root {
+  --font-sans:
+    "Inter",
+    "Aptos",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  --font-geist-sans: var(--font-sans);
+  --font-geist-mono:
+    "SFMono-Regular",
+    "SF Mono",
+    "Aptos Mono",
+    "Cascadia Code",
+    "Fira Code",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  --font-sacramento: "Snell Roundhand", "Brush Script MT", cursive;
   --background: oklch(0.985 0.006 95);
   --foreground: oklch(0.24 0.012 108);
   --card: oklch(0.995 0.004 95);

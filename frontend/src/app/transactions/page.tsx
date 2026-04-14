@@ -9,42 +9,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { ProtectedRoute } from '@/lib/ProtectedRoute';
-import { transactionsApi, type Transaction } from '@/lib/api';
+import { transactionsApi } from '@/lib/api';
+import { useFlatwatchData } from '@/lib/useFlatwatchData';
 import { useTrustState } from '@/lib/useTrustState';
 
 function TransactionsContent() {
   const { publicKey } = useWallet();
   const trust = useTrustState(publicKey?.toBase58() ?? null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadTransactions = async () => {
-    try {
-      setError(null);
-      const data = await transactionsApi.list({ limit: 50 });
-      setTransactions(Array.isArray(data) ? data : []);
-    } catch {
-      setError('Failed to load transactions.');
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-      setSyncing(false);
-    }
-  };
+  const { transactions, refreshTransactions, refreshDashboard } = useFlatwatchData();
+  const error = transactions.error;
+  const loading = !transactions.loaded && !error;
 
   useEffect(() => {
-    void loadTransactions();
-  }, []);
+    void refreshTransactions();
+  }, [refreshTransactions]);
 
   const handleSync = async () => {
     setSyncing(true);
     try {
       await transactionsApi.sync();
-      await loadTransactions();
+      await Promise.all([refreshTransactions(true), refreshDashboard(true)]);
     } catch {
-      setError('Sync failed.');
+      // Preserve the last good transactions list when sync fails.
+    } finally {
       setSyncing(false);
     }
   };
@@ -85,7 +73,7 @@ function TransactionsContent() {
         </Card>
       ) : null}
 
-      <TransactionList transactions={transactions} />
+      <TransactionList transactions={transactions.data} />
     </PageLayout>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { fetchTrustSnapshot, type TrustSnapshot } from './trust';
 
 const DEFAULT_SNAPSHOT: TrustSnapshot = {
@@ -10,12 +11,26 @@ const DEFAULT_SNAPSHOT: TrustSnapshot = {
   trust: null,
 };
 
-export function useTrustState(subjectId?: string | null) {
+interface TrustStateValue extends TrustSnapshot {
+  loading: boolean;
+  error: string | null;
+}
+
+const TrustStateContext = createContext<TrustStateValue | null>(null);
+
+function useTrustStateLoader(subjectId?: string | null, enabled = true): TrustStateValue {
   const [snapshot, setSnapshot] = useState<TrustSnapshot>(DEFAULT_SNAPSHOT);
-  const [loading, setLoading] = useState(Boolean(subjectId));
+  const [loading, setLoading] = useState(enabled && Boolean(subjectId));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setSnapshot(DEFAULT_SNAPSHOT);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!subjectId) {
       setSnapshot(DEFAULT_SNAPSHOT);
       setLoading(false);
@@ -49,11 +64,30 @@ export function useTrustState(subjectId?: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [subjectId]);
+  }, [enabled, subjectId]);
 
   return {
     ...snapshot,
     loading,
     error,
   };
+}
+
+export function TrustStateProvider({ children }: { children: ReactNode }) {
+  const { publicKey } = useWallet();
+  const value = useTrustStateLoader(publicKey?.toBase58() ?? null);
+
+  return createElement(TrustStateContext.Provider, { value }, children);
+}
+
+export function useTrustState(subjectId?: string | null) {
+  const context = useContext(TrustStateContext);
+  const normalizedSubjectId = subjectId ?? null;
+  const contextMatchesSubject =
+    context !== null &&
+    normalizedSubjectId !== null &&
+    context.trust?.wallet_address === normalizedSubjectId;
+  const shouldUseContext = context !== null && (normalizedSubjectId === null || contextMatchesSubject);
+  const fallback = useTrustStateLoader(normalizedSubjectId, !shouldUseContext);
+  return shouldUseContext ? context : fallback;
 }
