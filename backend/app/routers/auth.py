@@ -1,5 +1,5 @@
 # Authentication router for FlatWatch
-from fastapi import APIRouter, HTTPException, Depends, status, Request, Header
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 
@@ -8,12 +8,10 @@ from ..auth import (
     LoginRequest,
     SignupRequest,
     User,
-    SSOValidationResponse,
     create_access_token,
     authenticate_user,
     create_user,
     get_current_user,
-    validate_sso_session,
 )
 from ..audit import AuditAction, log_action
 
@@ -24,8 +22,7 @@ security = HTTPBearer(auto_error=False)
 @router.post("/login", response_model=Token)
 async def login(request: LoginRequest, req: Request):
     """
-    Login endpoint (POC mock).
-    In production, this will verify Firebase ID tokens.
+    Login endpoint for the demo bearer-token flow.
     """
     user = authenticate_user(request.email, request.password)
     if not user:
@@ -52,8 +49,7 @@ async def login(request: LoginRequest, req: Request):
 @router.post("/signup", response_model=Token)
 async def signup(request: SignupRequest, req: Request):
     """
-    Signup endpoint (POC mock).
-    In production, this will create Firebase user.
+    Signup endpoint for the demo bearer-token flow.
     """
     # Check if user exists
     from ..auth import MOCK_USERS
@@ -99,8 +95,7 @@ async def get_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
 @router.api_route("/verify", methods=["GET", "POST"])
 async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """
-    Verify Firebase token (POC stub).
-    In production, this will call Firebase Admin SDK.
+    Verify an existing demo bearer token.
     """
     if credentials is None:
         raise HTTPException(
@@ -114,41 +109,3 @@ async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Dep
             detail="Invalid token",
         )
     return {"valid": True, "user": user}
-
-
-@router.get("/validate", response_model=SSOValidationResponse)
-async def validate_sso(
-    request: Request,
-    cookie: Optional[str] = Header(None, alias="Cookie"),
-):
-    """
-    SSO session validation endpoint (proxy to identity provider).
-
-    Validates SSO session by forwarding cookies to the identity provider.
-    Used by frontend to check if user is authenticated via SSO.
-
-    Args:
-        request: FastAPI request object
-        cookie: Raw Cookie header from client
-
-    Returns:
-        SSOValidationResponse with user data if session is valid
-    """
-    if not cookie:
-        return SSOValidationResponse(valid=False)
-
-    # Forward the entire cookie string to the SSO provider
-    result = await validate_sso_session(cookie)
-
-    if result.valid:
-        # Audit log successful validation
-        # (Note: user.id is from SSO provider, may differ from local DB)
-        from ..audit import log_action, AuditAction
-        log_action(
-            AuditAction.LOGIN,
-            int(result.user.id) if result.user.id.isdigit() else 0,
-            f"SSO session validated: {result.user.email}",
-            ip_address=request.client.host if request.client else None,
-        )
-
-    return result

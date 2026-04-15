@@ -17,7 +17,13 @@
 
    ```
    NEXT_PUBLIC_API_URL=https://flatwatch-api.onrender.com
+   NEXT_PUBLIC_TRUST_API_URL=https://identity-aadhar-gateway-main.onrender.com
+   NEXT_PUBLIC_IDENTITY_WEB_URL=https://aadharcha.in
    ```
+
+   Notes:
+   - `https://flatwatch.aadharcha.in` uses `frontend/vercel.json` to rewrite same-origin `/api/*` traffic to Render, so the public domain can keep browser requests on the same origin.
+   - The deployed auth flow is the demo bearer-token login exposed by `/api/auth/login` and `/api/auth/verify`.
 
 4. **Deploy**
    - Click "Deploy"
@@ -65,6 +71,6 @@
 - [ ] Frontend accessible at Vercel URL
 - [ ] Backend health check returns 200
 - [ ] Database tables created (first request auto-initializes)
-- [ ] Test login with mock users
+- [ ] Test the demo operator login with the seeded backend user
 - [ ] Verify CORS settings allow frontend domain
 - [ ] Cron jobs scheduled successfully

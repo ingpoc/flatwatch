@@ -55,7 +55,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         title="Sign in required"
         description={
           <span className="space-y-2 text-center">
-            <span className="block">Use the local development account to access FlatWatch.</span>
+            <span className="block">Use the FlatWatch demo operator account to access the dashboard.</span>
             {error ? <span className="block text-destructive">{error}</span> : null}
           </span>
         }

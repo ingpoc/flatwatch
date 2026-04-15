@@ -1,14 +1,12 @@
 # Authentication service for FlatWatch
-# POC: Mock implementation (to be replaced with Firebase)
+# POC: Demo bearer-token implementation backed by seeded users
 # Security: Emails are encrypted at rest using AES-256-GCM (see encryption.py)
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
-import httpx
 from pydantic import BaseModel
 
 from .encryption import encrypt_email, decrypt_email, hash_sensitive_data
-from .config import IDENTITY_URL
 
 # Secret key for JWT (in production, use environment variable)
 SECRET_KEY = "flatwatch-dev-secret-key-change-in-production"
@@ -32,7 +30,7 @@ class Token(BaseModel):
 
 class LoginRequest(BaseModel):
     email: str
-    password: str  # POC only - Firebase uses tokens
+    password: str  # POC only - the demo auth flow accepts seeded credentials
 
 
 class SignupRequest(BaseModel):
@@ -40,20 +38,6 @@ class SignupRequest(BaseModel):
     password: str  # POC only
     name: Optional[str] = None
     flat_number: Optional[str] = None
-
-
-class SSOUser(BaseModel):
-    """User model from SSO provider."""
-    id: str
-    email: str
-    name: Optional[str] = None
-    role: str
-
-
-class SSOValidationResponse(BaseModel):
-    """Response from SSO session validation."""
-    valid: bool
-    user: Optional[SSOUser] = None
 
 
 # Mock user database (POC)
@@ -101,7 +85,7 @@ def verify_token(token: str) -> Optional[dict]:
 def authenticate_user(email: str, password: str) -> Optional[User]:
     """
     Authenticate user (POC mock implementation).
-    In production, this will verify Firebase tokens.
+    The current demo flow accepts any password for seeded users.
     """
     user_data = MOCK_USERS.get(email)
     if user_data:
@@ -136,47 +120,6 @@ def get_current_user(token: str) -> Optional[User]:
     if user_data:
         return User(**user_data)
     return None
-
-
-async def validate_sso_session(cookie_value: str) -> SSOValidationResponse:
-    """
-    Validate SSO session with identity provider.
-
-    Args:
-        cookie_value: The SSO cookie value to forward to identity provider
-
-    Returns:
-        SSOValidationResponse with user data if valid
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{IDENTITY_URL}/api/auth/validate",
-                headers={"Cookie": cookie_value},
-                timeout=10.0,
-            )
-
-            if response.status_code == 401:
-                return SSOValidationResponse(valid=False)
-
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get("valid") and data.get("user"):
-                return SSOValidationResponse(
-                    valid=True,
-                    user=SSOUser(**data["user"]),
-                )
-
-            return SSOValidationResponse(valid=False)
-
-    except httpx.HTTPError as e:
-        # Log error but don't expose details
-        print(f"SSO validation error: {e}")
-        return SSOValidationResponse(valid=False)
-    except Exception as e:
-        print(f"Unexpected SSO validation error: {e}")
-        return SSOValidationResponse(valid=False)
 
 
 def require_role(user: User, required_roles: list[str]) -> bool:

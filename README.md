@@ -25,7 +25,7 @@ A proof-of-concept (POC) application designed to enhance transparency in housing
 |-------|------------|
 | **Frontend** | Next.js 16, React 19, Tailwind CSS 4, dRAMS Design |
 | **Backend** | FastAPI, Python 3.12, SQLite |
-| **Auth** | SSO via aadharcha.in (identity provider) |
+| **Auth** | Demo operator auth via local bearer tokens |
 | **AI** | Claude Agent SDK |
 | **OCR** | Google Cloud Vision / Tesseract |
 | **Database** | SQLite (POC), PostgreSQL (production) |
@@ -58,7 +58,7 @@ society-transparency-system/
 - Node.js 18+
 - Python 3.12+
 - npm or pnpm
-- SSO account on [aadharcha.in](https://aadharcha.in)
+- No external identity account required for the current demo auth flow
 
 ### Installation
 
@@ -91,7 +91,8 @@ society-transparency-system/
 
    ```bash
    NEXT_PUBLIC_API_URL=http://127.0.0.1:43104
-   NEXT_PUBLIC_IDENTITY_URL=http://127.0.0.1:43100
+   NEXT_PUBLIC_TRUST_API_URL=http://127.0.0.1:43101
+   NEXT_PUBLIC_IDENTITY_WEB_URL=http://127.0.0.1:43100
    ```
 
 ### Development
@@ -118,11 +119,12 @@ society-transparency-system/
 
 ## 🔐 Authentication
 
-FlatWatch uses SSO (Single Sign-On) via [aadharcha.in](https://aadharcha.in):
+FlatWatch currently uses a demo operator login backed by local bearer tokens:
 
 - **Protected Routes**: `/dashboard`, `/receipts`, `/challenges`, `/chat`
-- **Auto-Redirect**: Unauthenticated users are redirected to SSO login
-- **Session Validation**: Sessions validated before each API call
+- **Demo Login**: The dashboard sign-in button uses the seeded operator account
+- **Bearer Token Storage**: Successful login stores `flatwatch-auth-token` in `localStorage`
+- **Session Validation**: Existing tokens are verified against `/api/auth/verify` before protected pages render
 - **User Context**: `useAuth()` hook provides user state and auth functions
 
 ### Auth Hook Usage
@@ -146,7 +148,7 @@ function MyComponent() {
 
 ## 📡 API Usage
 
-All API calls include automatic session validation and `X-User-ID` header:
+All API calls include the stored bearer token automatically:
 
 ```typescript
 import { transactionsApi, receiptsApi } from '@/lib/api';
@@ -189,8 +191,7 @@ pytest
 - **AES-256 Encryption** for sensitive data
 - **Immutable Audit Trails** for all actions
 - **Role-Based Access Control** (Resident, Admin, Super-admin)
-- **SSO Integration** with aadharcha.in
-- **Credentials: include** for cookie handling
+- **JWT-based Demo Auth** for the operator dashboard
 - **WCAG 2.1** accessibility compliance
 
 ## 📱 Pages

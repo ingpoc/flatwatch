@@ -7,9 +7,14 @@ const API_BASE = resolveFlatwatchApiBase();
 const AUTH_TOKEN_KEY = 'flatwatch-auth-token';
 const DEV_LOGIN_EMAIL = process.env.NEXT_PUBLIC_DEV_USER_EMAIL || 'resident@flatwatch.test';
 const DEV_LOGIN_PASSWORD = process.env.NEXT_PUBLIC_DEV_USER_PASSWORD || 'dev-local';
-const BACKEND_UNAVAILABLE_MESSAGE = `FlatWatch backend unavailable at ${API_BASE}. Start the local API and try again.`;
-const SESSION_VERIFY_TIMEOUT_MESSAGE = `FlatWatch session verification timed out at ${API_BASE}. Retry or sign in again.`;
-const SESSION_VERIFY_TIMEOUT_MS = 8000;
+const IS_LOCAL_API = API_BASE.includes('127.0.0.1') || API_BASE.includes('localhost');
+const BACKEND_UNAVAILABLE_MESSAGE = IS_LOCAL_API
+  ? `FlatWatch backend unavailable at ${API_BASE}. Start the local API and try again.`
+  : `FlatWatch backend unavailable at ${API_BASE}. The demo backend may still be waking up. Retry in a few seconds.`;
+const SESSION_VERIFY_TIMEOUT_MESSAGE = IS_LOCAL_API
+  ? `FlatWatch session verification timed out at ${API_BASE}. Retry or sign in again.`
+  : `FlatWatch session verification took too long at ${API_BASE}. The demo backend may still be waking up. Retry or sign in again.`;
+const SESSION_VERIFY_TIMEOUT_MS = 15000;
 
 export interface User {
   id: string;
