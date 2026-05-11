@@ -1,4 +1,6 @@
 # Tests for FlatWatch FastAPI backend
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -61,6 +63,45 @@ def test_database_file_created():
     db_path = get_db_path()
     init_db()
     assert db_path.exists()
+
+
+def test_init_db_migrates_legacy_sqlite_users_table():
+    """Test older local SQLite databases receive auth hardening columns."""
+    db_path = get_db_path()
+    if db_path.exists():
+        db_path.unlink()
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                firebase_uid TEXT UNIQUE NOT NULL,
+                email TEXT NOT NULL,
+                name TEXT,
+                role TEXT DEFAULT 'resident',
+                flat_number TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+
+    init_db()
+
+    conn = get_db_connection()
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    seeded = conn.execute(
+        "SELECT password_hash, token_version FROM users WHERE email = ?",
+        ("admin@flatwatch.test",),
+    ).fetchone()
+    conn.close()
+
+    assert "password_hash" in columns
+    assert "token_version" in columns
+    assert seeded["password_hash"]
+    assert seeded["token_version"] == 0
 
 
 def test_cors_headers(client):

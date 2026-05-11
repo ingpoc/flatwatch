@@ -253,7 +253,79 @@ def _init_sqlite_db(conn: sqlite3.Connection) -> None:
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    _migrate_sqlite_schema(conn)
     _seed_demo_users(conn)
+
+
+def _sqlite_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+    return {row[1] for row in cursor.fetchall()}
+
+
+def _ensure_sqlite_columns(
+    conn: sqlite3.Connection,
+    table_name: str,
+    columns: dict[str, str],
+) -> None:
+    existing = _sqlite_columns(conn, table_name)
+    for column_name, column_definition in columns.items():
+        if column_name not in existing:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+
+
+def _migrate_sqlite_schema(conn: sqlite3.Connection) -> None:
+    """Bring local SQLite databases created by older app versions up to date."""
+    _ensure_sqlite_columns(
+        conn,
+        "users",
+        {
+            "password_hash": "TEXT",
+            "token_version": "INTEGER DEFAULT 0",
+        },
+    )
+    _ensure_sqlite_columns(
+        conn,
+        "challenges",
+        {
+            "assigned_reviewer_id": "INTEGER",
+            "response": "TEXT",
+            "resolution_reason": "TEXT",
+            "audit_receipt_id": "INTEGER",
+            "resolved_by": "INTEGER",
+        },
+    )
+    _ensure_sqlite_columns(
+        conn,
+        "receipts",
+        {
+            "original_filename": "TEXT",
+            "storage_key": "TEXT",
+            "content_hash": "TEXT",
+            "content_type": "TEXT",
+            "size_bytes": "INTEGER DEFAULT 0",
+            "retained_until": "TEXT",
+            "deleted_at": "TEXT",
+        },
+    )
+    _ensure_sqlite_columns(
+        conn,
+        "receipt_extractions",
+        {
+            "matching_rule": "TEXT DEFAULT 'unmatched'",
+            "needs_manual_review": "BOOLEAN NOT NULL DEFAULT 0",
+            "reviewer_outcome": "TEXT",
+            "audit_receipt_id": "INTEGER",
+        },
+    )
+    _ensure_sqlite_columns(
+        conn,
+        "payment_ingestion_events",
+        {
+            "retry_count": "INTEGER DEFAULT 0",
+            "last_error": "TEXT",
+            "updated_at": "DATETIME",
+        },
+    )
 
 
 def _seed_demo_users(conn) -> None:
