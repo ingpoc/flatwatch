@@ -21,15 +21,34 @@ DEMO_ENCRYPTION_KEY = "flatwatch-poc-32-byte-key-change-me!!"
 SECRET_KEY = os.getenv("SECRET_KEY", DEMO_SECRET_KEY)
 ENCRYPTION_KEY_TEXT = os.getenv("ENCRYPTION_KEY", DEMO_ENCRYPTION_KEY)
 
+RUNTIME_MODE_ALIASES = {
+    "demo": "demo",
+    "dev": "demo",
+    "development": "demo",
+    "local": "demo",
+    "staging": "staging",
+    "stage": "staging",
+    "production": "production",
+    "prod": "production",
+}
 
-def is_production_runtime() -> bool:
-    mode = (
+
+def _truthy(value: str | None) -> bool:
+    return bool(value and value.strip().lower() in {"1", "true", "yes", "on"})
+
+
+def get_runtime_mode() -> str:
+    raw_mode = (
         os.getenv("FLATWATCH_ENV")
         or os.getenv("APP_ENV")
         or os.getenv("ENVIRONMENT")
-        or "development"
+        or "demo"
     )
-    return mode.strip().lower() in {"production", "prod"}
+    return RUNTIME_MODE_ALIASES.get(raw_mode.strip().lower(), "demo")
+
+
+def is_production_runtime() -> bool:
+    return get_runtime_mode() == "production"
 
 
 def validate_runtime_security_config() -> None:
@@ -43,10 +62,16 @@ def validate_runtime_security_config() -> None:
         missing.append("SECRET_KEY")
     if not encryption_key or encryption_key == DEMO_ENCRYPTION_KEY:
         missing.append("ENCRYPTION_KEY")
+    if not _truthy(os.getenv("FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH")):
+        missing.append("FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH")
+    if not _truthy(os.getenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY")):
+        missing.append("FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY")
+    if not _truthy(os.getenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR")):
+        missing.append("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR")
 
     if missing:
         raise RuntimeError(
-            "FlatWatch production mode requires non-default values for "
+            "FlatWatch production mode requires non-default secrets and explicit allowances for demo/mock surfaces: "
             + ", ".join(missing)
             + "."
         )

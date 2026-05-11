@@ -127,6 +127,14 @@ FlatWatch currently uses a demo operator login backed by local bearer tokens:
 - **Session Validation**: Existing tokens are verified against `/api/auth/verify` before protected pages render
 - **User Context**: `useAuth()` hook provides user state and auth functions
 
+Production startup is guarded separately from local demo mode. Set `FLATWATCH_ENV`
+to `demo`, `staging`, or `production`; production requires non-default
+`SECRET_KEY` and `ENCRYPTION_KEY` values. Because auth, Razorpay ingestion, and
+OCR are still demo/mock surfaces, production also refuses to start unless the
+operator explicitly sets `FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH=true`,
+`FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY=true`, and
+`FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR=true`.
+
 ### Auth Hook Usage
 
 ```tsx
