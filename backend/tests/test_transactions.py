@@ -1,4 +1,7 @@
 # Tests for transactions endpoints
+import hashlib
+import hmac
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -143,3 +146,77 @@ def test_sync_saves_transactions(client, auth_token):
     count = cursor.fetchone()["count"]
     conn.close()
     assert count > 0
+
+
+def test_razorpay_webhook_requires_valid_signature(client, monkeypatch):
+    """Test Razorpay webhook rejects invalid signatures."""
+    monkeypatch.setenv("FLATWATCH_RAZORPAY_WEBHOOK_SECRET", "webhook-secret")
+    payload = {
+        "source_transaction_id": "pay_123",
+        "amount": 1200.0,
+        "transaction_type": "inflow",
+        "description": "Maintenance payment",
+        "vpa": "resident@upi",
+    }
+
+    response = client.post(
+        "/api/transactions/webhooks/razorpay",
+        content=json.dumps(payload),
+        headers={
+            "X-Razorpay-Signature": "invalid",
+            "Idempotency-Key": "event-123",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_razorpay_webhook_ingests_once_with_idempotency(client, monkeypatch):
+    """Test signed Razorpay webhook stores source reference and de-duplicates."""
+    monkeypatch.setenv("FLATWATCH_RAZORPAY_WEBHOOK_SECRET", "webhook-secret")
+    payload = {
+        "source_transaction_id": "pay_123",
+        "amount": 1200.0,
+        "transaction_type": "inflow",
+        "description": "Maintenance payment",
+        "vpa": "resident@upi",
+    }
+    body = json.dumps(payload)
+    signature = hmac.new(b"webhook-secret", body.encode("utf-8"), hashlib.sha256).hexdigest()
+    headers = {
+        "X-Razorpay-Signature": signature,
+        "Idempotency-Key": "event-123",
+    }
+
+    response = client.post(
+        "/api/transactions/webhooks/razorpay",
+        content=body,
+        headers=headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ingested"
+    assert data["source_transaction_id"] == "pay_123"
+
+    duplicate = client.post(
+        "/api/transactions/webhooks/razorpay",
+        content=body,
+        headers=headers,
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json()["status"] == "duplicate"
+    assert duplicate.json()["transaction_id"] == data["transaction_id"]
+
+    conn = get_db_connection()
+    event_count = conn.execute("SELECT COUNT(*) as count FROM payment_ingestion_events").fetchone()["count"]
+    txn_count = conn.execute("SELECT COUNT(*) as count FROM transactions").fetchone()["count"]
+    event = conn.execute(
+        "SELECT provider, source_transaction_id, raw_payload FROM payment_ingestion_events"
+    ).fetchone()
+    conn.close()
+
+    assert event_count == 1
+    assert txn_count == 1
+    assert event["provider"] == "razorpay"
+    assert event["source_transaction_id"] == "pay_123"
+    assert json.loads(event["raw_payload"])["description"] == "Maintenance payment"

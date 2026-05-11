@@ -99,6 +99,18 @@ def init_db() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS payment_ingestion_events (
+                idempotency_key TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                source_transaction_id TEXT NOT NULL,
+                raw_payload TEXT NOT NULL,
+                transaction_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+            )
+        """)
+
         conn.commit()
 
     # Initialize audit tables

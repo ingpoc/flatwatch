@@ -1,5 +1,10 @@
 # Transactions router for FlatWatch
-from fastapi import APIRouter, Depends, Query
+import hashlib
+import hmac
+import json
+import os
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from typing import List, Optional
 
 from ..models import Transaction, TransactionCreate
@@ -9,6 +14,18 @@ from ..database import get_db_connection
 from ..razorpay import sync_transactions
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
+
+
+def _webhook_secret() -> str:
+    return os.getenv("FLATWATCH_RAZORPAY_WEBHOOK_SECRET", "")
+
+
+def _verify_webhook_signature(body: bytes, signature: str) -> bool:
+    secret = _webhook_secret()
+    if not secret:
+        return False
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 
 @router.get("", response_model=List[Transaction])
@@ -59,6 +76,107 @@ async def trigger_sync(current_user: User = Depends(require_resident)):
     return {
         "message": "Sync completed",
         **result,
+    }
+
+
+@router.post("/webhooks/razorpay")
+async def ingest_razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: str = Header("", alias="X-Razorpay-Signature"),
+    idempotency_key: str = Header("", alias="Idempotency-Key"),
+):
+    """
+    Ingest a signed Razorpay-style webhook.
+    This is the production-control path for idempotency and immutable source references;
+    the current `/sync` route remains the local mock feed.
+    """
+    body = await request.body()
+    if not _verify_webhook_signature(body, x_razorpay_signature):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Razorpay webhook signature",
+        )
+    if not idempotency_key.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Idempotency-Key header is required",
+        )
+
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON webhook payload",
+        ) from exc
+
+    source_transaction_id = str(payload.get("source_transaction_id") or payload.get("id") or "").strip()
+    if not source_transaction_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="source_transaction_id is required",
+        )
+
+    amount = float(payload.get("amount", 0))
+    txn_type = payload.get("transaction_type")
+    if amount <= 0 or txn_type not in {"inflow", "outflow"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook payload requires positive amount and inflow/outflow transaction_type",
+        )
+
+    conn = get_db_connection()
+    existing = conn.execute(
+        "SELECT transaction_id FROM payment_ingestion_events WHERE idempotency_key = ?",
+        (idempotency_key,),
+    ).fetchone()
+    if existing:
+        conn.close()
+        return {
+            "status": "duplicate",
+            "transaction_id": existing["transaction_id"],
+            "source_transaction_id": source_transaction_id,
+        }
+
+    cursor = conn.execute(
+        """
+        INSERT INTO transactions (amount, transaction_type, description, vpa)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            amount,
+            txn_type,
+            payload.get("description"),
+            payload.get("vpa"),
+        ),
+    )
+    transaction_id = cursor.lastrowid
+    conn.execute(
+        """
+        INSERT INTO payment_ingestion_events (
+            idempotency_key,
+            provider,
+            source_transaction_id,
+            raw_payload,
+            transaction_id
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            idempotency_key,
+            "razorpay",
+            source_transaction_id,
+            json.dumps(payload, sort_keys=True),
+            transaction_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "ingested",
+        "transaction_id": transaction_id,
+        "source_transaction_id": source_transaction_id,
     }
 
 
