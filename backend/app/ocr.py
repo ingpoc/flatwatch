@@ -1,6 +1,7 @@
 # OCR integration for FlatWatch (POC mock)
 from datetime import datetime
 from typing import Optional
+import hashlib
 import re
 
 
@@ -80,7 +81,28 @@ async def extract_receipt_data(file_path: str) -> dict:
         "date": receipt_data.date,
         "vendor": receipt_data.vendor,
         "confidence": receipt_data.confidence,
+        "extraction_method": "mock_filename",
+        "source_hash": hashlib.sha256(file_path.encode("utf-8")).hexdigest(),
     }
+
+
+def score_transaction_match(receipt_data: dict, txn: dict) -> int:
+    score = 0
+
+    # Amount match (highest weight)
+    if abs(txn.get("amount", 0) - receipt_data["amount"]) < 1:
+        score += 50
+
+    # Date proximity
+    txn_date = txn.get("timestamp", "")
+    if receipt_data["date"] in txn_date:
+        score += 30
+
+    # Vendor/VPA match
+    if receipt_data["vendor"].lower() in str(txn.get("description", "")).lower():
+        score += 20
+
+    return score
 
 
 async def match_transaction(
@@ -96,20 +118,7 @@ async def match_transaction(
     best_score = 0
 
     for txn in transactions:
-        score = 0
-
-        # Amount match (highest weight)
-        if abs(txn.get("amount", 0) - receipt_data["amount"]) < 1:
-            score += 50
-
-        # Date proximity
-        txn_date = txn.get("timestamp", "")
-        if receipt_data["date"] in txn_date:
-            score += 30
-
-        # Vendor/VPA match
-        if receipt_data["vendor"].lower() in str(txn.get("description", "")).lower():
-            score += 20
+        score = score_transaction_match(receipt_data, txn)
 
         if score > best_score and score >= 50:
             best_match = txn
@@ -131,6 +140,7 @@ async def process_receipt_with_ocr(
 
     # Try to match with transaction
     matched_txn = await match_transaction(extracted, transactions)
+    match_score = score_transaction_match(extracted, matched_txn) if matched_txn else 0
 
     # Determine flag level
     if matched_txn:
@@ -139,9 +149,16 @@ async def process_receipt_with_ocr(
         flag_level = "yellow"  # Partial match
     else:
         flag_level = "red"  # No match
+    needs_manual_review = (
+        extracted["extraction_method"] == "mock_filename"
+        or not matched_txn
+        or match_score < 80
+    )
 
     return {
         "extracted": extracted,
         "matched_transaction": matched_txn,
+        "match_score": match_score,
         "flag_level": flag_level,
+        "needs_manual_review": needs_manual_review,
     }

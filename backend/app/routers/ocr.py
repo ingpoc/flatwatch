@@ -1,5 +1,7 @@
 # OCR router for FlatWatch
-from fastapi import APIRouter, Depends
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..rbac import require_resident
 from ..auth import User
@@ -17,6 +19,12 @@ async def process_receipt(
     """
     Process receipt with OCR to extract and match data.
     """
+    if Path(receipt_filename).name != receipt_filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid receipt filename",
+        )
+
     # Get existing transactions for matching
     conn = get_db_connection()
     cursor = conn.execute(

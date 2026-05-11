@@ -54,6 +54,8 @@ async def test_extract_receipt_data():
     assert result["amount"] == 8500.0
     assert result["vendor"] == "Water Supply Co"
     assert result["confidence"] > 0.8
+    assert result["extraction_method"] == "mock_filename"
+    assert len(result["source_hash"]) == 64
 
 
 @pytest.mark.asyncio
@@ -99,6 +101,18 @@ def test_process_receipt(client, auth_token):
     data = response.json()
     assert "extracted" in data
     assert "flag_level" in data
+    assert data["extracted"]["extraction_method"] == "mock_filename"
+    assert data["needs_manual_review"] is True
+    assert "match_score" in data
+
+
+def test_process_receipt_rejects_path_traversal(client, auth_token):
+    """Test OCR processing rejects path traversal filenames."""
+    response = client.post(
+        "/api/ocr/process/../flatwatch.db",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status_code in {400, 404}
 
 
 def test_match_suggestions(client, auth_token):
