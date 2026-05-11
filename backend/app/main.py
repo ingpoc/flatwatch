@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import API_TITLE, API_VERSION, get_cors_origins
+from .config import API_TITLE, API_VERSION, get_cors_origins, validate_runtime_security_config
 from .database import init_db, get_db_connection
 from .models import HealthResponse
 from .routers import auth, admin, transactions, receipts, ocr, chat, challenges, audit, scanner, notifications, control_plane
@@ -13,6 +13,7 @@ from .routers import auth, admin, transactions, receipts, ocr, chat, challenges,
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events."""
     # Startup
+    validate_runtime_security_config()
     init_db()
     yield
     # Shutdown (if needed)

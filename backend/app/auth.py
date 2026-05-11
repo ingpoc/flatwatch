@@ -6,10 +6,9 @@ from typing import Optional
 import jwt
 from pydantic import BaseModel
 
+from .config import SECRET_KEY
 from .encryption import encrypt_email, decrypt_email, hash_sensitive_data
 
-# Secret key for JWT (in production, use environment variable)
-SECRET_KEY = "flatwatch-dev-secret-key-change-in-production"
 ALGORITHM = "HS256"
 
 

@@ -5,14 +5,12 @@ from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.backends import default_backend
 
+from .config import ENCRYPTION_KEY_TEXT
+
 
 # POC: In production, use proper key management (KMS, HashiCorp Vault, etc.)
 # Key should be 256 bits (32 bytes) for AES-256
-ENCRYPTION_KEY = os.getenv(
-    "ENCRYPTION_KEY",
-    # Default key for POC - NEVER use in production
-    "flatwatch-poc-32-byte-key-change-me!!"
-).encode()[:32]  # Ensure exactly 32 bytes
+ENCRYPTION_KEY = ENCRYPTION_KEY_TEXT.encode()[:32]  # Ensure exactly 32 bytes
 
 
 def encrypt_data(plaintext: str) -> str:
