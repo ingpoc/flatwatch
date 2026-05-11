@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * AUTH-COMPOSITION: producer=aadhaar-chain
+ * AUTH-COMPOSITION: deployed_public_mode=app_local_auth
+ * AUTH-COMPOSITION: local_dev_mode=app_local_auth
+ */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { resolveFlatwatchApiBase } from './apiBase';
 
