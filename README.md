@@ -1,240 +1,112 @@
-# FlatWatch – Society Transparency System
+# FlatWatch
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/openclaw-gurusharan/flatwatch)
+`flatwatch` is the portfolio transparency and audit application for housing society finance workflows. It consumes AadhaarChain trust for elevated evidence, challenge, and agent workflows while keeping its app-local resident/admin auth separate.
 
-> AI-powered web application for financial transparency and accountability in Indian housing societies.
+It is currently a hardened POC/pilot candidate, not a fully production-wired society finance system.
 
-A proof-of-concept (POC) application designed to enhance transparency in housing society financial management through automated transaction tracking, receipt verification, AI-powered queries, and a public dashboard for accountability.
+## Local Services
 
-## 🌟 Features
+| Service | URL |
+| --- | --- |
+| Frontend | `http://127.0.0.1:43105` |
+| Backend | `http://127.0.0.1:43104` |
+| AadhaarChain gateway | `http://127.0.0.1:43101` |
 
-| Feature | Description |
-|---------|-------------|
-| **Live Money Feed** | POC transaction feed backed by mock Razorpay/MyGate-style data |
-| **Receipt Snap** | Upload receipts with filename-based mock OCR extraction and matching |
-| **Chat Guard** | AI-powered natural language queries with bye-laws compliance context |
-| **Challenge Mode** | Dispute suspicious transactions with 48-hour resolution timer |
-| **Shame Dashboard** | Public-facing financial metrics with transaction attribution |
-| **Daily AI Analysis** | Automated scans for discrepancies and mismatched entries |
+## Features
 
-## 🏗️ Architecture
+- Dashboard with financial summary and transaction list.
+- Receipt upload and review workflow.
+- Challenge creation and resolution workflow.
+- Admin audit review surface.
+- Chat Guard agent surface for trust-aware receipt, transaction, and dispute analysis.
+- AadhaarChain trust consumption for elevated workflows.
 
-### Tech Stack
+## Architecture
 
 | Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 16, React 19, Tailwind CSS 4, dRAMS Design |
-| **Backend** | FastAPI, Python 3.12, SQLite |
-| **Auth** | Demo operator auth via local bearer tokens |
-| **AI** | Claude Agent SDK |
-| **OCR** | Filename-based mock OCR (Google Cloud Vision / Tesseract planned) |
-| **Database** | SQLite (POC), PostgreSQL (production) |
+| --- | --- |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4 |
+| Backend | FastAPI, Python 3.12 |
+| Local database | SQLite with idempotent migrations |
+| Production database target | PostgreSQL |
+| Auth | app-local resident/admin auth |
+| Agent runtime | Claude Agent SDK path through backend control-plane routes |
+| Trust producer | AadhaarChain gateway |
 
-### Project Structure
+## Development
 
-```
-society-transparency-system/
-├── frontend/                 # Next.js frontend application
-│   ├── src/
-│   │   ├── app/              # Next.js app router pages
-│   │   ├── components/      # React components
-│   │   └── lib/             # Utilities (auth, API client)
-│   └── package.json
-├── backend/                 # FastAPI backend application
-│   ├── app/
-│   │   ├── routers/         # API endpoints
-│   │   ├── models.py        # Database models
-│   │   └── main.py          # Application entry
-│   ├── data/                # SQLite database
-│   └── requirements.txt
-├── .claude/                 # Claude Code configuration
-└── README.md
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- Python 3.12+
-- npm or pnpm
-- No external identity account required for the current demo auth flow
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/ingpoc/flatwatch.git
-   cd flatwatch
-   ```
-
-2. **Install frontend dependencies**
-
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-3. **Install backend dependencies**
-
-   ```bash
-   cd ../backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**
-
-   Create `frontend/.env.local`:
-
-   ```bash
-   NEXT_PUBLIC_API_URL=http://127.0.0.1:43104
-   NEXT_PUBLIC_TRUST_API_URL=http://127.0.0.1:43101
-   NEXT_PUBLIC_IDENTITY_WEB_URL=http://127.0.0.1:43100
-   ```
-
-### Development
-
-1. **Start the backend**
-
-   ```bash
-   cd backend
-   source venv/bin/activate
-   python -m uvicorn app.main:app --reload
-   ```
-
-2. **Start the frontend**
-
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. **Access the application**
-   - Frontend: <http://127.0.0.1:43105>
-   - Backend API: <http://127.0.0.1:43104>
-   - API Docs: <http://127.0.0.1:43104/api/docs>
-
-## 🔐 Authentication
-
-FlatWatch currently uses a demo operator login backed by local bearer tokens:
-
-- **Protected Routes**: `/dashboard`, `/receipts`, `/challenges`, `/chat`
-- **Demo Login**: The dashboard sign-in button uses the seeded operator account
-- **Bearer Token Storage**: Successful login stores `flatwatch-auth-token` in `localStorage`
-- **Session Validation**: Existing tokens are verified against `/api/auth/verify` before protected pages render
-- **User Context**: `useAuth()` hook provides user state and auth functions
-
-Production startup is guarded separately from local demo mode. Set `FLATWATCH_ENV`
-to `demo`, `staging`, or `production`; production requires non-default
-`SECRET_KEY` and `ENCRYPTION_KEY` values. Because auth, Razorpay ingestion, and
-OCR are still demo/mock surfaces, production also refuses to start unless the
-operator explicitly sets `FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH=true`,
-`FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY=true`, and
-`FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR=true`.
-
-### Auth Hook Usage
-
-```tsx
-import { useAuth } from '@/lib/auth';
-import { ProtectedRoute } from '@/lib/ProtectedRoute';
-
-function MyComponent() {
-  const { user, loading, login, logout } = useAuth();
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <ProtectedRoute>
-      <div>Welcome, {user?.name}</div>
-    </ProtectedRoute>
-  );
-}
-```
-
-## 📡 API Usage
-
-All API calls include the stored bearer token automatically:
-
-```typescript
-import { transactionsApi, receiptsApi } from '@/lib/api';
-
-// List transactions (session auto-validated)
-const txns = await transactionsApi.list({ limit: 10 });
-
-// Upload receipt
-await receiptsApi.upload(file);
-
-// Create challenge
-await challengesApi.create(transactionId, "Reason for challenge");
-```
-
-## 🧪 Testing
-
-### Frontend Tests
-
-```bash
-cd frontend
-npm test
-```
-
-### Backend Tests
+Backend:
 
 ```bash
 cd backend
-source venv/bin/activate
-pytest
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /Users/gurusharan/.pyenv/versions/3.12.0/bin/python3 -m pytest -q -p pytest_asyncio.plugin --asyncio-mode=auto
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 43104
 ```
 
-### Test Coverage
+Frontend:
 
-- Auth hook: 14 tests ✅
-- API wrapper: 20 tests ✅
-- Backend auth: 9 tests ✅
+```bash
+cd frontend
+npm install
+npm test -- --runInBand
+npm run lint
+npm run build
+npm run dev
+```
 
-## 🔒 Security Features
+The workspace deterministic gate runs both backend and frontend checks:
 
-- **AES-256 Encryption** for sensitive data
-- **Immutable Audit Trails** for all actions
-- **Role-Based Access Control** (Resident, Admin, Super-admin)
-- **JWT-based Demo Auth** for the operator dashboard
-- **WCAG 2.1** accessibility compliance
+```bash
+scripts/portfolio/acceptance-gate.sh --deterministic-only
+```
 
-## 📱 Pages
+The latest gate passed, including FlatWatch backend `125` tests and frontend Jest, ESLint, and Next build checks.
 
-| Route | Page | Access |
-|-------|------|--------|
-| `/` | Landing page | Public |
-| `/dashboard` | Financial summary & transactions | Authenticated |
-| `/receipts` | Upload & manage receipts | Authenticated |
-| `/challenges` | Create & track disputes | Authenticated |
-| `/chat` | AI-powered financial queries | Authenticated |
-| `/notifications` | Notification preferences | Authenticated |
+## Runtime Modes
 
-## 🛣️ Roadmap
+Set `FLATWATCH_ENV` to one of:
 
-### POC (Current)
+- `demo`
+- `staging`
+- `production`
 
-- Single society support (~650 flats)
-- Mock Razorpay/MyGate-style transaction ingestion
-- Basic AI analysis
-- SQLite database
+Production startup refuses unsafe demo defaults unless explicitly allowed by the operator. Production requires non-default `SECRET_KEY` and `ENCRYPTION_KEY` values and blocks demo/mock auth, mock Razorpay ingestion, and mock OCR unless the corresponding explicit override is set.
 
-### Future Versions
+## Trust And Agent Flow
 
-- **v1.1**: Multi-society support, advanced ML anomaly detection
-- **v2.0**: Mobile app, additional gateway integrations (PhonePe)
+FlatWatch reads AadhaarChain trust for elevated transparency, evidence, challenge, and agent workflows.
 
-## 📄 License
+Agent surface:
 
-This project is proprietary software.
+- route: `/chat`
+- not route: `/agent`
 
-## 👥 Contributing
+Chrome validation in the signed wallet profile renders `/chat` with:
 
-This is a private project. For inquiries, contact the maintainers.
+- wallet `C5svcE...g92YFF`
+- runtime `local_cli`
+- verified write path enabled
 
----
+Chrome text-entry submission for new FlatWatch prompts is currently blocked by the Chrome plugin textarea/clipboard path, but the page, runtime, wallet, and trust state render correctly.
 
-**Built with ❤️ for housing society transparency**
+## POC And Production Gaps
+
+Do not claim production readiness until these are wired to real managed services:
+
+- replace demo/local auth for pilot and production
+- replace mock Razorpay/MyGate-style ingestion with signed provider webhook verification, reconciliation, retry, and source references
+- replace mock OCR/fallback extraction with real extraction, confidence, matching, manual review, and durable audit trail
+- move local receipt files to private object storage with signed downloads, retention, deletion, and access audit logs
+- keep agent write actions auditable and reversible where possible
+
+## Pages
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Landing page |
+| `/dashboard` | Financial summary and transaction overview |
+| `/transactions` | Transaction list |
+| `/receipts` | Receipt upload and review |
+| `/challenges` | Challenge workflow |
+| `/chat` | Chat Guard agent surface |
+| `/audit` | Admin audit review |
