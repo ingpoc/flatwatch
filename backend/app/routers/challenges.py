@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from ..rbac import require_resident, require_admin
 from ..auth import User
 from ..database import get_db_connection
+from ..audit import AuditAction, log_action
 
 
 class ChallengeCreate(BaseModel):
@@ -62,6 +63,13 @@ async def create_challenge(
     cursor = conn.execute("SELECT * FROM challenges WHERE id = ?", (cursor.lastrowid,))
     result = dict(cursor.fetchone())
     conn.close()
+    log_action(
+        AuditAction.CHALLENGE_CREATE,
+        current_user.id,
+        f"Challenge created for transaction {challenge.transaction_id}: {challenge.reason}",
+        target_id=result["id"],
+        target_type="challenge",
+    )
 
     return {
         "id": result["id"],
@@ -134,6 +142,14 @@ async def resolve_challenge(
     if cursor.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Challenge not found")
+    conn.close()
+    log_action(
+        AuditAction.CHALLENGE_RESOLVE,
+        current_user.id,
+        f"Challenge resolved with evidence: {evidence}",
+        target_id=challenge_id,
+        target_type="challenge",
+    )
 
     return {
         "message": "Challenge resolved",
@@ -163,6 +179,14 @@ async def reject_challenge(
     if cursor.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Challenge not found")
+    conn.close()
+    log_action(
+        AuditAction.CHALLENGE_REJECT,
+        current_user.id,
+        f"Challenge rejected: {body.reason}",
+        target_id=challenge_id,
+        target_type="challenge",
+    )
 
     return {
         "message": "Challenge rejected",

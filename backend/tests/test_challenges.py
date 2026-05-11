@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.database import init_db, get_db_path
+from app.audit import get_audit_logs
 
 
 @pytest.fixture(autouse=True)
@@ -60,6 +61,9 @@ def test_create_challenge(client, resident_token, admin_token):
     assert response.status_code == 200
     data = response.json()
     assert "id" in data
+    logs = get_audit_logs(target_id=data["id"])
+    assert logs[0]["action"] == "challenge_create"
+    assert logs[0]["target_type"] == "challenge"
 
 
 def test_create_challenge_invalid_txn(client, resident_token):
@@ -107,6 +111,9 @@ def test_resolve_challenge(client, admin_token):
     assert response.status_code == 200
     data = response.json()
     assert "resolved" in data["message"].lower()
+    logs = get_audit_logs(target_id=challenge_id)
+    assert logs[0]["action"] == "challenge_resolve"
+    assert logs[0]["target_type"] == "challenge"
 
 
 def test_reject_challenge(client, admin_token):
@@ -130,6 +137,9 @@ def test_reject_challenge(client, admin_token):
         json={"reason": "Invalid challenge"},
     )
     assert response.status_code == 200
+    logs = get_audit_logs(target_id=challenge_id)
+    assert logs[0]["action"] == "challenge_reject"
+    assert logs[0]["details"] == "Challenge rejected: Invalid challenge"
 
 
 def test_pending_count(client, admin_token):
