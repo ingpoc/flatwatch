@@ -1,5 +1,5 @@
 # Audit log router for FlatWatch
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -40,7 +40,13 @@ async def list_audit_logs(
     List audit logs with optional filters.
     Admin only - ensures only admins can view audit trail.
     """
-    audit_action = AuditAction(action) if action else None
+    try:
+        audit_action = AuditAction(action) if action else None
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported audit action filter: {action}",
+        ) from exc
     return get_audit_logs(user_id, audit_action, target_id, limit)
 
 
