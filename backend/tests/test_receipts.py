@@ -55,6 +55,49 @@ def test_upload_receipt(client, auth_token):
     data = response.json()
     assert "filename" in data
     assert data["original_filename"] == "test_receipt.pdf"
+    assert data["size"] == len(file_content)
+    assert "path" not in data
+
+
+def test_upload_rejects_disallowed_mime_type(client, auth_token):
+    """Test receipt uploads enforce MIME and extension allowlist."""
+    from io import BytesIO
+
+    response = client.post(
+        "/api/receipts/upload",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files={"file": ("script.sh", BytesIO(b"echo unsafe"), "text/x-shellscript")},
+    )
+    assert response.status_code == 415
+
+
+def test_upload_rejects_mismatched_extension_and_mime_type(client, auth_token):
+    """Test upload extension must match MIME type."""
+    from io import BytesIO
+
+    response = client.post(
+        "/api/receipts/upload",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files={"file": ("receipt.pdf", BytesIO(b"not an image"), "image/png")},
+    )
+    assert response.status_code == 415
+
+
+def test_upload_rejects_large_receipt(client, auth_token, monkeypatch):
+    """Test receipt uploads enforce size limits."""
+    from io import BytesIO
+
+    monkeypatch.setattr(
+        "app.routers.receipts.MAX_RECEIPT_UPLOAD_BYTES",
+        4,
+    )
+
+    response = client.post(
+        "/api/receipts/upload",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files={"file": ("receipt.pdf", BytesIO(b"too large"), "application/pdf")},
+    )
+    assert response.status_code == 413
 
 
 def test_upload_without_auth(client):
@@ -97,3 +140,15 @@ def test_get_receipt(client, auth_token):
         headers={"Authorization": f"Bearer {auth_token}"},
     )
     assert response.status_code == 200
+    data = response.json()
+    assert data["filename"] == filename
+    assert "path" not in data
+
+
+def test_get_receipt_rejects_path_traversal(client, auth_token):
+    """Test receipt lookup rejects path traversal."""
+    response = client.get(
+        "/api/receipts/../flatwatch.db",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status_code in {400, 404}
