@@ -5,7 +5,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from app.control_plane import AgentRuntimeSnapshot, UsageSnapshot
+from app.control_plane import APP_CAPABILITIES, AgentRuntimeSnapshot, UsageSnapshot, build_runtime_snapshot
 from app.database import get_db_path, init_db
 from app.main import app
 
@@ -77,6 +77,46 @@ def test_runtime_snapshot_returns_auth_mode_and_usage(client, resident_token, mo
     assert payload["runtime_available"] is True
     assert payload["mode"] == "read_only"
     assert payload["usage"]["requests_used"] == 0
+
+
+@pytest.mark.parametrize(
+    "trust_state",
+    [
+        "no_identity",
+        "identity_present_unverified",
+        "verified",
+        "manual_review",
+        "revoked_or_blocked",
+    ],
+)
+def test_flatwatch_runtime_snapshot_trust_fixture_matrix(monkeypatch, trust_state):
+    monkeypatch.setenv("CLAUDE_AGENT_AUTH_MODE", "bedrock")
+
+    snapshot = build_runtime_snapshot(
+        subject_id=f"resident-{trust_state}",
+        app_id="flatwatch",
+        trust_state=trust_state,
+        trust_reason=f"Trust reason for {trust_state}.",
+    )
+
+    assert snapshot.runtime_available is True
+    assert snapshot.agent_access is True
+    assert snapshot.trust_state == trust_state
+    assert snapshot.trust_required_for_write is True
+
+    if trust_state == "verified":
+        assert snapshot.mode == "full"
+        assert snapshot.blocked_reason is None
+        assert snapshot.allowed_capabilities == (
+            APP_CAPABILITIES["flatwatch"]["read"] + APP_CAPABILITIES["flatwatch"]["write"]
+        )
+        return
+
+    assert snapshot.mode == "read_only"
+    assert snapshot.blocked_reason == f"Trust reason for {trust_state}."
+    assert snapshot.allowed_capabilities == APP_CAPABILITIES["flatwatch"]["read"]
+    for write_capability in APP_CAPABILITIES["flatwatch"]["write"]:
+        assert write_capability not in snapshot.allowed_capabilities
 
 
 def test_runtime_unavailable_blocks_session_creation(client, resident_token, monkeypatch):
