@@ -10,8 +10,8 @@ A proof-of-concept (POC) application designed to enhance transparency in housing
 
 | Feature | Description |
 |---------|-------------|
-| **Live Money Feed** | Real-time transaction ingestion via Razorpay/MyGate integration |
-| **Receipt Snap** | Upload receipts (PDF, images, Excel/CSV) with OCR extraction and auto-matching |
+| **Live Money Feed** | POC transaction feed backed by mock Razorpay/MyGate-style data |
+| **Receipt Snap** | Upload receipts with filename-based mock OCR extraction and matching |
 | **Chat Guard** | AI-powered natural language queries with bye-laws compliance context |
 | **Challenge Mode** | Dispute suspicious transactions with 48-hour resolution timer |
 | **Shame Dashboard** | Public-facing financial metrics with transaction attribution |
@@ -27,7 +27,7 @@ A proof-of-concept (POC) application designed to enhance transparency in housing
 | **Backend** | FastAPI, Python 3.12, SQLite |
 | **Auth** | Demo operator auth via local bearer tokens |
 | **AI** | Claude Agent SDK |
-| **OCR** | Google Cloud Vision / Tesseract |
+| **OCR** | Filename-based mock OCR (Google Cloud Vision / Tesseract planned) |
 | **Database** | SQLite (POC), PostgreSQL (production) |
 
 ### Project Structure
@@ -218,7 +218,7 @@ pytest
 ### POC (Current)
 
 - Single society support (~650 flats)
-- Razorpay/MyGate integration
+- Mock Razorpay/MyGate-style transaction ingestion
 - Basic AI analysis
 - SQLite database
 
