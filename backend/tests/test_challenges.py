@@ -106,14 +106,31 @@ def test_resolve_challenge(client, admin_token):
     response = client.put(
         f"/api/challenges/{challenge_id}/resolve",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"evidence": "Receipt uploaded"},
+        json={
+            "evidence": "Receipt uploaded",
+            "response": "Accepted",
+            "resolution_reason": "Receipt matches transaction",
+        },
     )
     assert response.status_code == 200
     data = response.json()
     assert "resolved" in data["message"].lower()
+    assert data["audit_receipt_id"]
     logs = get_audit_logs(target_id=challenge_id)
     assert logs[0]["action"] == "challenge_resolve"
     assert logs[0]["target_type"] == "challenge"
+
+
+def test_resolution_report(client, admin_token):
+    """Test admin resolution report exposes audit evidence counts."""
+    response = client.get(
+        "/api/challenges/reports/resolution",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "by_status" in data
+    assert "resolution_audit_events" in data
 
 
 def test_reject_challenge(client, admin_token):

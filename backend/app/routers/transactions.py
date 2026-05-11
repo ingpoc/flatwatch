@@ -12,6 +12,7 @@ from ..rbac import require_resident, require_admin
 from ..auth import User
 from ..database import get_db_connection
 from ..razorpay import sync_transactions
+from ..audit import AuditAction, log_action
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
 
@@ -26,6 +27,43 @@ def _verify_webhook_signature(body: bytes, signature: str) -> bool:
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+
+@router.get("/public/dashboard")
+async def public_dashboard():
+    """Public aggregate transparency view with private resident/payment details removed."""
+    conn = get_db_connection()
+    totals = conn.execute(
+        """
+        SELECT
+            SUM(CASE WHEN transaction_type = 'inflow' THEN amount ELSE 0 END) as total_inflow,
+            SUM(CASE WHEN transaction_type = 'outflow' THEN amount ELSE 0 END) as total_outflow,
+            SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) as verified_transactions,
+            SUM(CASE WHEN verified = 0 THEN 1 ELSE 0 END) as unverified_transactions,
+            COUNT(*) as transaction_count
+        FROM transactions
+        """
+    ).fetchone()
+    challenges = conn.execute(
+        "SELECT status, COUNT(*) as count FROM challenges GROUP BY status"
+    ).fetchall()
+    receipt_count = conn.execute("SELECT COUNT(*) as count FROM receipts WHERE deleted_at IS NULL").fetchone()["count"]
+    conn.close()
+    inflow = totals["total_inflow"] or 0
+    outflow = totals["total_outflow"] or 0
+    return {
+        "total_inflow": inflow,
+        "total_outflow": outflow,
+        "balance": inflow - outflow,
+        "verified_transactions": totals["verified_transactions"] or 0,
+        "unverified_transactions": totals["unverified_transactions"] or 0,
+        "transaction_count": totals["transaction_count"] or 0,
+        "challenge_counts": {row["status"]: row["count"] for row in challenges},
+        "aggregate_receipt_coverage": {
+            "receipt_count": receipt_count,
+            "transaction_count": totals["transaction_count"] or 0,
+        },
+    }
 
 
 @router.get("", response_model=List[Transaction])
@@ -158,9 +196,10 @@ async def ingest_razorpay_webhook(
             provider,
             source_transaction_id,
             raw_payload,
-            transaction_id
+            transaction_id,
+            status
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, 'ingested')
         """,
         (
             idempotency_key,
@@ -178,6 +217,80 @@ async def ingest_razorpay_webhook(
         "transaction_id": transaction_id,
         "source_transaction_id": source_transaction_id,
     }
+
+
+@router.get("/ingestion/status")
+async def get_ingestion_status(current_user: User = Depends(require_admin)):
+    """Admin visibility into payment ingestion sync status and failures."""
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT provider, status, COUNT(*) as count
+        FROM payment_ingestion_events
+        GROUP BY provider, status
+        """
+    ).fetchall()
+    failures = conn.execute(
+        """
+        SELECT idempotency_key, provider, source_transaction_id, status, retry_count, last_error
+        FROM payment_ingestion_events
+        WHERE status = 'failed'
+        ORDER BY updated_at DESC
+        LIMIT 50
+        """
+    ).fetchall()
+    conn.close()
+    return {
+        "by_provider_status": [dict(row) for row in rows],
+        "failures": [dict(row) for row in failures],
+    }
+
+
+@router.post("/ingestion/reconcile")
+async def reconcile_ingestion(current_user: User = Depends(require_admin)):
+    """Find ingestion events without durable transaction rows."""
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT e.idempotency_key, e.provider, e.source_transaction_id, e.transaction_id
+        FROM payment_ingestion_events e
+        LEFT JOIN transactions t ON e.transaction_id = t.id
+        WHERE e.transaction_id IS NULL OR t.id IS NULL
+        """
+    ).fetchall()
+    log_action(
+        AuditAction.TRANSACTION_SYNC,
+        current_user.id,
+        f"Payment ingestion reconciliation found {len(rows)} unmatched source events",
+        target_type="payment_ingestion",
+    )
+    conn.close()
+    return {"unmatched": [dict(row) for row in rows], "unmatched_count": len(rows)}
+
+
+@router.post("/ingestion/{idempotency_key}/retry")
+async def mark_ingestion_retry(idempotency_key: str, current_user: User = Depends(require_admin)):
+    """Record an operator-visible retry attempt for a failed sync event."""
+    conn = get_db_connection()
+    cursor = conn.execute(
+        """
+        UPDATE payment_ingestion_events
+        SET retry_count = retry_count + 1, status = 'retry_pending', updated_at = CURRENT_TIMESTAMP
+        WHERE idempotency_key = ?
+        """,
+        (idempotency_key,),
+    )
+    conn.commit()
+    conn.close()
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Ingestion event not found")
+    log_action(
+        AuditAction.TRANSACTION_SYNC,
+        current_user.id,
+        f"Payment ingestion retry requested for {idempotency_key}",
+        target_type="payment_ingestion",
+    )
+    return {"status": "retry_pending", "idempotency_key": idempotency_key}
 
 
 @router.get("/summary")

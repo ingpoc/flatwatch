@@ -12,6 +12,7 @@ from ..auth import (
     authenticate_user,
     create_user,
     get_current_user,
+    invalidate_token,
 )
 from ..audit import AuditAction, log_action
 
@@ -51,15 +52,14 @@ async def signup(request: SignupRequest, req: Request):
     """
     Signup endpoint for the demo bearer-token flow.
     """
-    # Check if user exists
-    from ..auth import MOCK_USERS
-    if request.email in MOCK_USERS:
+    from ..auth import _find_user_by_email
+    if _find_user_by_email(request.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already exists",
         )
 
-    user = create_user(request.email, request.name, request.flat_number)
+    user = create_user(request.email, request.name, request.flat_number, request.password)
     access_token = create_access_token(
         data={"sub": user.email, "role": user.role, "id": user.id}
     )
@@ -109,3 +109,30 @@ async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Dep
             detail="Invalid token",
         )
     return {"valid": True, "user": user}
+
+
+@router.post("/logout")
+async def logout(
+    req: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Invalidate the current bearer token."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    user = get_current_user(credentials.credentials)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+    invalidate_token(credentials.credentials, user.id)
+    log_action(
+        AuditAction.LOGOUT,
+        user.id,
+        f"User logged out: {user.email}",
+        ip_address=req.client.host if req.client else None,
+    )
+    return {"message": "Logged out"}

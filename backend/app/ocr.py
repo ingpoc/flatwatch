@@ -2,7 +2,9 @@
 from datetime import datetime
 from typing import Optional
 import hashlib
+import os
 import re
+import httpx
 
 
 class ReceiptData:
@@ -73,6 +75,22 @@ async def extract_receipt_data(file_path: str) -> dict:
     Extract data from receipt file.
     Returns extracted data with confidence score.
     """
+    provider_url = os.getenv("FLATWATCH_OCR_PROVIDER_URL")
+    if provider_url:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(provider_url, json={"file_reference": file_path})
+            response.raise_for_status()
+            payload = response.json()
+        return {
+            "amount": float(payload["amount"]),
+            "date": payload["date"],
+            "vendor": payload["vendor"],
+            "confidence": float(payload.get("confidence", 0)),
+            "extraction_method": payload.get("extraction_method", "provider_api"),
+            "source_hash": hashlib.sha256(file_path.encode("utf-8")).hexdigest(),
+            "field_confidence": payload.get("field_confidence", {}),
+        }
+
     client = OCRClient()
     receipt_data = await client.extract_from_file(file_path)
 
@@ -83,6 +101,11 @@ async def extract_receipt_data(file_path: str) -> dict:
         "confidence": receipt_data.confidence,
         "extraction_method": "mock_filename",
         "source_hash": hashlib.sha256(file_path.encode("utf-8")).hexdigest(),
+        "field_confidence": {
+            "amount": receipt_data.confidence,
+            "date": receipt_data.confidence,
+            "vendor": receipt_data.confidence,
+        },
     }
 
 
@@ -159,6 +182,7 @@ async def process_receipt_with_ocr(
         "extracted": extracted,
         "matched_transaction": matched_txn,
         "match_score": match_score,
+        "matching_rule": "amount_date_vendor_weighted_v1",
         "flag_level": flag_level,
         "needs_manual_review": needs_manual_review,
     }

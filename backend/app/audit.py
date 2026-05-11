@@ -22,6 +22,8 @@ class AuditAction(str, Enum):
     # Receipt actions
     RECEIPT_UPLOAD = "receipt_upload"
     RECEIPT_MATCH = "receipt_match"
+    RECEIPT_ACCESS = "receipt_access"
+    RECEIPT_DELETE = "receipt_delete"
 
     # Challenge actions
     CHALLENGE_CREATE = "challenge_create"

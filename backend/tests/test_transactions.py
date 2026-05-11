@@ -220,3 +220,54 @@ def test_razorpay_webhook_ingests_once_with_idempotency(client, monkeypatch):
     assert event["provider"] == "razorpay"
     assert event["source_transaction_id"] == "pay_123"
     assert json.loads(event["raw_payload"])["description"] == "Maintenance payment"
+
+
+def test_ingestion_status_reconcile_retry_and_public_dashboard(client, auth_token, monkeypatch):
+    """Test admin sync status surfaces and public aggregate privacy view."""
+    monkeypatch.setenv("FLATWATCH_RAZORPAY_WEBHOOK_SECRET", "webhook-secret")
+    payload = {
+        "source_transaction_id": "pay_status",
+        "amount": 1500.0,
+        "transaction_type": "inflow",
+        "description": "Maintenance payment",
+        "vpa": "private@upi",
+    }
+    body = json.dumps(payload)
+    signature = hmac.new(b"webhook-secret", body.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    response = client.post(
+        "/api/transactions/webhooks/razorpay",
+        content=body,
+        headers={
+            "X-Razorpay-Signature": signature,
+            "Idempotency-Key": "event-status",
+        },
+    )
+    assert response.status_code == 200
+
+    status_response = client.get(
+        "/api/transactions/ingestion/status",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert status_response.status_code == 200
+    assert status_response.json()["by_provider_status"][0]["status"] == "ingested"
+
+    retry_response = client.post(
+        "/api/transactions/ingestion/event-status/retry",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert retry_response.status_code == 200
+    assert retry_response.json()["status"] == "retry_pending"
+
+    reconcile_response = client.post(
+        "/api/transactions/ingestion/reconcile",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert reconcile_response.status_code == 200
+    assert reconcile_response.json()["unmatched_count"] == 0
+
+    public_response = client.get("/api/transactions/public/dashboard")
+    assert public_response.status_code == 200
+    public_data = public_response.json()
+    assert public_data["total_inflow"] == 1500.0
+    assert "private@upi" not in json.dumps(public_data)

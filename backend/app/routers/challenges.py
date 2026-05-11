@@ -13,10 +13,17 @@ from ..audit import AuditAction, log_action
 class ChallengeCreate(BaseModel):
     transaction_id: int
     reason: str
+    evidence: Optional[str] = None
 
 
 class ChallengeReject(BaseModel):
     reason: str
+
+
+class ChallengeResolve(BaseModel):
+    evidence: Optional[str] = None
+    response: str = "Challenge resolved by admin."
+    resolution_reason: str = "Evidence reviewed."
 
 
 class ChallengeResponse(BaseModel):
@@ -52,10 +59,10 @@ async def create_challenge(
     now = datetime.now(timezone.utc)
     cursor = conn.execute(
         """
-        INSERT INTO challenges (transaction_id, user_id, reason, status, created_at)
-        VALUES (?, ?, ?, 'pending', ?)
+        INSERT INTO challenges (transaction_id, user_id, reason, evidence, status, created_at)
+        VALUES (?, ?, ?, ?, 'pending', ?)
         """,
-        (challenge.transaction_id, current_user.id, challenge.reason, now),
+        (challenge.transaction_id, current_user.id, challenge.reason, challenge.evidence, now),
     )
     conn.commit()
 
@@ -118,10 +125,31 @@ async def list_challenges(
     return challenges
 
 
+@router.get("/reports/resolution")
+async def get_resolution_report(current_user: User = Depends(require_admin)):
+    """Admin challenge resolution report with audit-oriented summary fields."""
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT status, COUNT(*) as count
+        FROM challenges
+        GROUP BY status
+        """
+    ).fetchall()
+    audit_count = conn.execute(
+        "SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('challenge_resolve', 'challenge_reject')"
+    ).fetchone()["count"]
+    conn.close()
+    return {
+        "by_status": {row["status"]: row["count"] for row in rows},
+        "resolution_audit_events": audit_count,
+    }
+
+
 @router.put("/{challenge_id}/resolve")
 async def resolve_challenge(
     challenge_id: int,
-    evidence: str = None,
+    body: ChallengeResolve,
     current_user: User = Depends(require_admin),
 ):
     """
@@ -132,29 +160,48 @@ async def resolve_challenge(
     cursor = conn.execute(
         """
         UPDATE challenges
-        SET status = 'resolved', resolved_at = ?
+        SET status = 'resolved',
+            resolved_at = ?,
+            resolved_by = ?,
+            assigned_reviewer_id = ?,
+            evidence = ?,
+            response = ?,
+            resolution_reason = ?
         WHERE id = ?
         """,
-        (datetime.now(timezone.utc), challenge_id),
+        (
+            datetime.now(timezone.utc),
+            current_user.id,
+            current_user.id,
+            body.evidence,
+            body.response,
+            body.resolution_reason,
+            challenge_id,
+        ),
     )
     conn.commit()
 
     if cursor.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Challenge not found")
-    conn.close()
-    log_action(
+    audit_id = log_action(
         AuditAction.CHALLENGE_RESOLVE,
         current_user.id,
-        f"Challenge resolved with evidence: {evidence}",
+        f"Challenge resolved: {body.resolution_reason}",
         target_id=challenge_id,
         target_type="challenge",
     )
+    conn.execute("UPDATE challenges SET audit_receipt_id = ? WHERE id = ?", (audit_id, challenge_id))
+    conn.commit()
+    conn.close()
 
     return {
         "message": "Challenge resolved",
         "challenge_id": challenge_id,
-        "evidence": evidence,
+        "evidence": body.evidence,
+        "response": body.response,
+        "resolution_reason": body.resolution_reason,
+        "audit_receipt_id": audit_id,
         "resolved_by": current_user.email,
     }
 

@@ -104,6 +104,16 @@ def test_process_receipt(client, auth_token):
     assert data["extracted"]["extraction_method"] == "mock_filename"
     assert data["needs_manual_review"] is True
     assert "match_score" in data
+    assert "matching_rule" in data
+    assert "audit_receipt_id" in data
+
+    from app.database import get_db_connection
+
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM receipt_extractions").fetchone()
+    conn.close()
+    assert row["receipt_filename"] == "water_bill.pdf"
+    assert row["matching_rule"] == "amount_date_vendor_weighted_v1"
 
 
 def test_process_receipt_rejects_path_traversal(client, auth_token):

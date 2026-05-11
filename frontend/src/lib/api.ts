@@ -468,3 +468,29 @@ export const notificationsApi = {
     });
   },
 };
+
+export interface AuditLog {
+  id: number;
+  action: string;
+  user_id: number;
+  details: string;
+  target_id?: number | null;
+  target_type?: string | null;
+  timestamp: string;
+}
+
+export interface AuditStats {
+  total: number;
+  by_action: Record<string, number>;
+  by_user: Record<string, number>;
+}
+
+export const auditApi = {
+  logs: async (limit = 50): Promise<AuditLog[]> => {
+    return apiCall<AuditLog[]>(`/api/audit/logs?limit=${limit}`);
+  },
+
+  stats: async (): Promise<AuditStats> => {
+    return apiCall<AuditStats>('/api/audit/stats');
+  },
+};

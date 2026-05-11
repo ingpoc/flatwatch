@@ -113,6 +113,44 @@ def test_update_role_with_super_admin(client, admin_token):
     assert response.status_code == 200
 
 
+def test_admin_onboarding_import_and_export(client, admin_token):
+    """Test pilot onboarding surfaces are admin controlled and auditable."""
+    profile = client.post(
+        "/api/admin/onboarding/society",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "name": "Pilot CHS",
+            "registration_number": "REG-1",
+            "address": "Mumbai",
+        },
+    )
+    assert profile.status_code == 200
+
+    imported = client.post(
+        "/api/admin/onboarding/residents/import",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "residents": [
+                {
+                    "email": "pilot-resident@test.com",
+                    "name": "Pilot Resident",
+                    "flat_number": "C-301",
+                    "password": "resident-password",
+                }
+            ]
+        },
+    )
+    assert imported.status_code == 200
+    assert imported.json()["imported_count"] == 1
+
+    exported = client.get(
+        "/api/admin/export/audit",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert exported.status_code == 200
+    assert "audit_events" in exported.json()
+
+
 def test_unauthorized_access_no_token(client):
     """Test unauthorized access without token."""
     response = client.get("/api/admin/stats")

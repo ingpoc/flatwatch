@@ -35,6 +35,7 @@ def test_production_runtime_accepts_non_default_security_secrets(monkeypatch):
     monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH", "true")
     monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY", "true")
     monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR", "true")
+    monkeypatch.setenv("FLATWATCH_DATABASE_URL", "postgresql://flatwatch:test@localhost:5432/flatwatch")
 
     validate_runtime_security_config()
 
@@ -48,6 +49,19 @@ def test_production_runtime_rejects_demo_and_mock_surfaces_without_explicit_allo
     monkeypatch.delenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR", raising=False)
 
     with pytest.raises(RuntimeError, match="FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH"):
+        validate_runtime_security_config()
+
+
+def test_production_runtime_rejects_sqlite_database(monkeypatch):
+    monkeypatch.setenv("FLATWATCH_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "flatwatch-production-secret-with-at-least-32-bytes")
+    monkeypatch.setenv("ENCRYPTION_KEY", "flatwatch-production-encryption-key-32b")
+    monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_DEMO_AUTH", "true")
+    monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY", "true")
+    monkeypatch.setenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR", "true")
+    monkeypatch.setenv("FLATWATCH_DATABASE_URL", "sqlite:///tmp/flatwatch.db")
+
+    with pytest.raises(RuntimeError, match="FLATWATCH_DATABASE_URL"):
         validate_runtime_security_config()
 
 

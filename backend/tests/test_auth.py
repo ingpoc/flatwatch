@@ -116,3 +116,23 @@ def test_verify_token_valid(client):
     assert response.status_code == 200
     data = response.json()
     assert data["valid"] is True
+
+
+def test_logout_invalidates_current_token(client):
+    login_response = client.post(
+        "/api/auth/login",
+        json={"email": "resident@flatwatch.test", "password": "any"},
+    )
+    token = login_response.json()["access_token"]
+
+    logout = client.post(
+        "/api/auth/logout",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert logout.status_code == 200
+
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401

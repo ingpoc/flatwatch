@@ -57,6 +57,8 @@ def test_upload_receipt(client, auth_token):
     assert data["original_filename"] == "test_receipt.pdf"
     assert data["size"] == len(file_content)
     assert "path" not in data
+    assert len(data["content_hash"]) == 64
+    assert "retained_until" in data
 
 
 def test_upload_rejects_disallowed_mime_type(client, auth_token):
@@ -98,6 +100,24 @@ def test_upload_rejects_large_receipt(client, auth_token, monkeypatch):
         files={"file": ("receipt.pdf", BytesIO(b"too large"), "application/pdf")},
     )
     assert response.status_code == 413
+
+
+def test_upload_rejects_malware_signature(client, auth_token):
+    """Test receipt uploads run a basic content scan."""
+    from io import BytesIO
+
+    response = client.post(
+        "/api/receipts/upload",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files={
+            "file": (
+                "receipt.pdf",
+                BytesIO(b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE"),
+                "application/pdf",
+            )
+        },
+    )
+    assert response.status_code == 400
 
 
 def test_upload_without_auth(client):
@@ -142,6 +162,29 @@ def test_get_receipt(client, auth_token):
     assert response.status_code == 200
     data = response.json()
     assert data["filename"] == filename
+    assert "path" not in data
+    assert len(data["content_hash"]) == 64
+
+
+def test_get_receipt_signed_download_url(client, auth_token):
+    """Test receipt access uses signed URLs instead of filesystem paths."""
+    from io import BytesIO
+
+    upload_response = client.post(
+        "/api/receipts/upload",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files={"file": ("test.pdf", BytesIO(b"content"), "application/pdf")},
+    )
+    filename = upload_response.json()["filename"]
+
+    response = client.get(
+        f"/api/receipts/{filename}/download-url",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filename"] == filename
+    assert data["signed_url"].startswith(f"/api/receipts/{filename}/download?")
     assert "path" not in data
 
 

@@ -11,3 +11,4 @@ email-validator==2.3.0
 httpx==0.28.1
 PyJWT==2.10.1
 claude-agent-sdk==0.1.48
+psycopg[binary]==3.2.3

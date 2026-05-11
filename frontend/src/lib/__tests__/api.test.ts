@@ -1,6 +1,7 @@
 import {
   chatApi,
   challengesApi,
+  auditApi,
   notificationsApi,
   receiptsApi,
   transactionsApi,
@@ -165,5 +166,23 @@ describe('flatwatch API client', () => {
     });
 
     await expect(notificationsApi.list()).resolves.toEqual(payload);
+  });
+
+  it('loads audit logs and stats', async () => {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'demo-token');
+    const logs = [{ id: 1, action: 'login', user_id: 1, details: 'User logged in', timestamp: '2024-01-01' }];
+    const stats = { total: 1, by_action: { login: 1 }, by_user: { 1: 1 } };
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => logs,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => stats,
+      });
+
+    await expect(auditApi.logs()).resolves.toEqual(logs);
+    await expect(auditApi.stats()).resolves.toEqual(stats);
   });
 });

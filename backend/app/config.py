@@ -6,10 +6,10 @@ import os
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-# SQLite database path
+# Database path/URL
 DATABASE_PATH = Path(os.getenv("FLATWATCH_DATABASE_PATH", str(DATA_DIR / "flatwatch.db"))).expanduser()
 DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+DATABASE_URL = os.getenv("FLATWATCH_DATABASE_URL", f"sqlite:///{DATABASE_PATH}")
 
 # API settings
 API_TITLE = "FlatWatch API"
@@ -68,6 +68,9 @@ def validate_runtime_security_config() -> None:
         missing.append("FLATWATCH_ALLOW_PRODUCTION_MOCK_RAZORPAY")
     if not _truthy(os.getenv("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR")):
         missing.append("FLATWATCH_ALLOW_PRODUCTION_MOCK_OCR")
+    database_url = os.getenv("FLATWATCH_DATABASE_URL", DATABASE_URL)
+    if not database_url.startswith(("postgresql://", "postgres://")):
+        missing.append("FLATWATCH_DATABASE_URL")
 
     if missing:
         raise RuntimeError(
