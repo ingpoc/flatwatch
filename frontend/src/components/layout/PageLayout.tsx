@@ -19,13 +19,20 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  label: string;
+  external?: boolean;
+};
+
+const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/transactions', label: 'Transactions' },
   { href: '/receipts', label: 'Receipts' },
   { href: '/challenges', label: 'Challenges' },
   { href: '/chat', label: 'Chat' },
-] as const;
+  { href: '/usecase.html#agents', label: 'Use Case', external: true },
+];
 
 const WALLET_BUTTON_STYLE: CSSProperties = {
   backgroundColor: 'var(--primary)',
@@ -191,6 +198,15 @@ export function PageLayout({
 
           <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">
             {NAV_ITEMS.map((item) => (
+              item.external ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'rounded-full px-4')}
+                >
+                  {item.label}
+                </a>
+              ) : (
               <Link
                 key={item.href}
                 href={item.href}
@@ -205,6 +221,7 @@ export function PageLayout({
               >
                 {item.label}
               </Link>
+              )
             ))}
           </nav>
 
@@ -234,6 +251,15 @@ export function PageLayout({
                 </SheetHeader>
                 <div className="flex flex-col gap-3 px-6 pb-6">
                   {NAV_ITEMS.map((item) => (
+                    item.external ? (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className={cn(buttonVariants({ variant: 'ghost' }), 'justify-start rounded-full')}
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
                     <Link
                       key={item.href}
                       href={item.href}
@@ -247,6 +273,7 @@ export function PageLayout({
                     >
                       {item.label}
                     </Link>
+                    )
                   ))}
                   <div className="rounded-3xl border border-border bg-card px-4 py-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
