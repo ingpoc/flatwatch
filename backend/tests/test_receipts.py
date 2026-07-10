@@ -48,7 +48,7 @@ def test_upload_receipt(client, auth_token):
     file_content = b"test receipt content"
     response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("test_receipt.pdf", BytesIO(file_content), "application/pdf")},
     )
     assert response.status_code == 200
@@ -67,7 +67,7 @@ def test_upload_rejects_disallowed_mime_type(client, auth_token):
 
     response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("script.sh", BytesIO(b"echo unsafe"), "text/x-shellscript")},
     )
     assert response.status_code == 415
@@ -79,7 +79,7 @@ def test_upload_rejects_mismatched_extension_and_mime_type(client, auth_token):
 
     response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("receipt.pdf", BytesIO(b"not an image"), "image/png")},
     )
     assert response.status_code == 415
@@ -96,7 +96,7 @@ def test_upload_rejects_large_receipt(client, auth_token, monkeypatch):
 
     response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("receipt.pdf", BytesIO(b"too large"), "application/pdf")},
     )
     assert response.status_code == 413
@@ -108,7 +108,7 @@ def test_upload_rejects_malware_signature(client, auth_token):
 
     response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={
             "file": (
                 "receipt.pdf",
@@ -135,7 +135,7 @@ def test_list_receipts(client, auth_token):
     """Test listing receipts."""
     response = client.get(
         "/api/receipts/list",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -149,7 +149,7 @@ def test_get_receipt(client, auth_token):
 
     upload_response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("test.pdf", BytesIO(b"content"), "application/pdf")},
     )
     filename = upload_response.json()["filename"]
@@ -157,7 +157,7 @@ def test_get_receipt(client, auth_token):
     # Get file info
     response = client.get(
         f"/api/receipts/{filename}",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -172,14 +172,14 @@ def test_get_receipt_signed_download_url(client, auth_token):
 
     upload_response = client.post(
         "/api/receipts/upload",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         files={"file": ("test.pdf", BytesIO(b"content"), "application/pdf")},
     )
     filename = upload_response.json()["filename"]
 
     response = client.get(
         f"/api/receipts/{filename}/download-url",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -192,6 +192,6 @@ def test_get_receipt_rejects_path_traversal(client, auth_token):
     """Test receipt lookup rejects path traversal."""
     response = client.get(
         "/api/receipts/../flatwatch.db",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code in {400, 404}

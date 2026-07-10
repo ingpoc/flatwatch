@@ -49,13 +49,13 @@ def test_create_challenge(client, resident_token, admin_token):
     # First sync a transaction
     client.post(
         "/api/transactions/sync",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
 
     # Create challenge
     response = client.post(
         "/api/challenges",
-        headers={"Authorization": f"Bearer {resident_token}"},
+        headers={"Authorization": f"Bearer {resident_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={"transaction_id": 1, "reason": "Amount seems incorrect"},
     )
     assert response.status_code == 200
@@ -70,7 +70,7 @@ def test_create_challenge_invalid_txn(client, resident_token):
     """Test challenge on non-existent transaction."""
     response = client.post(
         "/api/challenges",
-        headers={"Authorization": f"Bearer {resident_token}"},
+        headers={"Authorization": f"Bearer {resident_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={"transaction_id": 999, "reason": "Test"},
     )
     assert response.status_code == 404
@@ -80,7 +80,7 @@ def test_list_challenges(client, resident_token):
     """Test listing challenges."""
     response = client.get(
         "/api/challenges",
-        headers={"Authorization": f"Bearer {resident_token}"},
+        headers={"Authorization": f"Bearer {resident_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -92,12 +92,12 @@ def test_resolve_challenge(client, admin_token):
     # First create a challenge
     client.post(
         "/api/transactions/sync",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
 
     challenge_response = client.post(
         "/api/challenges",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={"transaction_id": 1, "reason": "Verify this"},
     )
     challenge_id = challenge_response.json()["id"]
@@ -105,7 +105,7 @@ def test_resolve_challenge(client, admin_token):
     # Resolve it
     response = client.put(
         f"/api/challenges/{challenge_id}/resolve",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={
             "evidence": "Receipt uploaded",
             "response": "Accepted",
@@ -125,7 +125,7 @@ def test_resolution_report(client, admin_token):
     """Test admin resolution report exposes audit evidence counts."""
     response = client.get(
         "/api/challenges/reports/resolution",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -138,19 +138,19 @@ def test_reject_challenge(client, admin_token):
     # First sync a transaction
     client.post(
         "/api/transactions/sync",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
 
     challenge_response = client.post(
         "/api/challenges",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={"transaction_id": 1, "reason": "Test"},
     )
     challenge_id = challenge_response.json()["id"]
 
     response = client.put(
         f"/api/challenges/{challenge_id}/reject",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
         json={"reason": "Invalid challenge"},
     )
     assert response.status_code == 200
@@ -163,7 +163,7 @@ def test_pending_count(client, admin_token):
     """Test getting pending challenge count."""
     response = client.get(
         "/api/challenges/pending/count",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -174,7 +174,7 @@ def test_challenge_stats(client, admin_token):
     """Test challenge statistics."""
     response = client.get(
         "/api/challenges/stats",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {admin_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()

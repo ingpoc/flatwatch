@@ -74,7 +74,7 @@ function ChallengesContent() {
     setSubmitting(true);
     try {
       setActionError(null);
-      await challengesApi.create(selectedTxnId, reason.trim());
+      await challengesApi.create(selectedTxnId, reason.trim(), publicKey?.toBase58() ?? null);
       setShowNewForm(false);
       setSelectedTxnId(null);
       setReason('');
@@ -99,7 +99,7 @@ function ChallengesContent() {
 
     try {
       setActionError(null);
-      await challengesApi.resolve(challengeId, evidence);
+      await challengesApi.resolve(challengeId, evidence, publicKey?.toBase58() ?? null);
       await refreshChallenges(true);
     } catch {
       setActionError('Failed to resolve challenge.');

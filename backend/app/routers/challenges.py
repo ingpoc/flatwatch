@@ -8,6 +8,7 @@ from ..rbac import require_resident, require_admin
 from ..auth import User
 from ..database import get_db_connection
 from ..audit import AuditAction, log_action
+from ..trust import TrustSnapshot, require_verified_wallet_trust
 
 
 class ChallengeCreate(BaseModel):
@@ -43,8 +44,10 @@ router = APIRouter(prefix="/api/challenges", tags=["Challenges"])
 async def create_challenge(
     challenge: ChallengeCreate,
     current_user: User = Depends(require_resident),
+    trust: TrustSnapshot = Depends(require_verified_wallet_trust),
 ):
-    """Create a new challenge (dispute)."""
+    """Create a new challenge (dispute). Requires verified AadhaarChain trust."""
+    _ = trust
     # Verify transaction exists
     conn = get_db_connection()
     cursor = conn.execute(
@@ -151,11 +154,14 @@ async def resolve_challenge(
     challenge_id: int,
     body: ChallengeResolve,
     current_user: User = Depends(require_admin),
+    trust: TrustSnapshot = Depends(require_verified_wallet_trust),
 ):
     """
     Resolve a challenge with evidence.
     Admin only - marks challenge as resolved.
+    Elevated write: requires verified AadhaarChain trust via X-Wallet-Address.
     """
+    _ = trust
     conn = get_db_connection()
     cursor = conn.execute(
         """

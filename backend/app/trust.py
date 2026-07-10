@@ -3,6 +3,7 @@ import os
 from typing import Optional, TypedDict
 
 import httpx
+from fastapi import Header, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
@@ -57,3 +58,17 @@ async def fetch_trust_snapshot(wallet_address: Optional[str]) -> TrustSnapshot:
             "eligible": False,
             "reason": "An unexpected error occurred while fetching trust status.",
         }
+
+
+async def require_verified_wallet_trust(
+    x_wallet_address: Optional[str] = Header(None, alias="X-Wallet-Address"),
+) -> TrustSnapshot:
+    """Server-side gate for elevated FlatWatch writes (receipts, OCR, challenges)."""
+    trust = await fetch_trust_snapshot(x_wallet_address)
+    if not trust["eligible"] or trust["state"] != "verified":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=trust["reason"]
+            or "Verified AadhaarChain trust is required for this elevated FlatWatch action.",
+        )
+    return trust

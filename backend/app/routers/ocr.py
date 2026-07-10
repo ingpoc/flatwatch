@@ -8,6 +8,7 @@ from ..auth import User
 from ..ocr import process_receipt_with_ocr
 from ..database import get_db_connection
 from ..audit import AuditAction, log_action
+from ..trust import TrustSnapshot, require_verified_wallet_trust
 
 router = APIRouter(prefix="/api/ocr", tags=["OCR"])
 
@@ -16,10 +17,13 @@ router = APIRouter(prefix="/api/ocr", tags=["OCR"])
 async def process_receipt(
     receipt_filename: str,
     current_user: User = Depends(require_resident),
+    trust: TrustSnapshot = Depends(require_verified_wallet_trust),
 ):
     """
     Process receipt with OCR to extract and match data.
+    Elevated write: requires verified AadhaarChain trust via X-Wallet-Address.
     """
+    _ = trust
     if Path(receipt_filename).name != receipt_filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

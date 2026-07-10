@@ -13,6 +13,7 @@ from ..auth import User
 from ..audit import AuditAction, log_action
 from ..config import SECRET_KEY
 from ..database import get_db_connection
+from ..trust import TrustSnapshot, require_verified_wallet_trust
 
 router = APIRouter(prefix="/api/receipts", tags=["Receipts"])
 
@@ -88,11 +89,15 @@ async def upload_receipt(
     file: UploadFile = File(...),
     transaction_id: Optional[int] = Form(None),
     current_user: User = Depends(require_resident),
+    trust: TrustSnapshot = Depends(require_verified_wallet_trust),
 ):
     """
     Upload receipt document.
     Supports: PDF, images (PNG, JPG), Excel, CSV
+
+    Elevated write: requires verified AadhaarChain trust via X-Wallet-Address.
     """
+    _ = trust
     content = await file.read()
     file_ext = validate_receipt_upload(file, content)
     content_hash = hashlib.sha256(content).hexdigest()

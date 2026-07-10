@@ -89,13 +89,13 @@ def test_process_receipt(client, auth_token):
     # First sync some transactions
     client.post(
         "/api/transactions/sync",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
 
     # Process receipt
     response = client.post(
         "/api/ocr/process/water_bill.pdf",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -120,7 +120,7 @@ def test_process_receipt_rejects_path_traversal(client, auth_token):
     """Test OCR processing rejects path traversal filenames."""
     response = client.post(
         "/api/ocr/process/../flatwatch.db",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code in {400, 404}
 
@@ -130,12 +130,12 @@ def test_match_suggestions(client, auth_token):
     # Sync transactions first
     client.post(
         "/api/transactions/sync",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
 
     response = client.get(
         "/api/ocr/match-suggestions?amount=6000",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {auth_token}", "X-Wallet-Address": "FlatWatchTestWallet111111111111111111111"},
     )
     assert response.status_code == 200
     data = response.json()

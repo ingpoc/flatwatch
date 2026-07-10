@@ -84,10 +84,29 @@ describe('flatwatch API client', () => {
     await expect(transactionsApi.getSummary()).resolves.toEqual(payload);
   });
 
-  it('lists receipts', async () => {
+  it('lists receipts with unix uploaded_at', async () => {
     window.localStorage.setItem(AUTH_TOKEN_KEY, 'demo-token');
     const payload = {
       files: [{ filename: 'receipt.pdf', size: 512, uploaded_at: 1704067200 }],
+    };
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => payload,
+    });
+
+    await expect(receiptsApi.list()).resolves.toEqual([
+      {
+        filename: 'receipt.pdf',
+        size: 512,
+        upload_date: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('lists receipts with ISO uploaded_at from backend', async () => {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'demo-token');
+    const payload = {
+      files: [{ filename: 'receipt.pdf', size: 512, uploaded_at: '2024-01-01T00:00:00.000Z' }],
     };
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,

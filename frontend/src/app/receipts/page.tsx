@@ -55,7 +55,7 @@ function ReceiptsContent() {
     setUploading(true);
     try {
       setError(null);
-      await receiptsApi.upload(file);
+      await receiptsApi.upload(file, publicKey?.toBase58() ?? null);
       setFileInputKey((current) => current + 1);
       await refreshReceipts(true);
     } catch {
@@ -73,7 +73,7 @@ function ReceiptsContent() {
 
     try {
       setError(null);
-      await receiptsApi.process(filename);
+      await receiptsApi.process(filename, publicKey?.toBase58() ?? null);
       await refreshReceipts(true);
     } catch {
       setError('OCR processing failed.');
@@ -163,7 +163,12 @@ function ReceiptsContent() {
                     <div className="min-w-0 space-y-1">
                       <CardTitle className="truncate text-base font-medium">{receipt.filename}</CardTitle>
                       <CardDescription>
-                        {new Date(receipt.upload_date).toLocaleDateString()}
+                        {(() => {
+                          const parsed = new Date(receipt.upload_date);
+                          return Number.isNaN(parsed.getTime())
+                            ? 'Unknown date'
+                            : parsed.toLocaleDateString();
+                        })()}
                       </CardDescription>
                     </div>
                     <Badge variant={match.variant}>{match.label}</Badge>

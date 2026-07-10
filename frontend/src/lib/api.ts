@@ -16,7 +16,8 @@ function getAuthToken(): string | null {
  */
 async function apiCall<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  walletAddress?: string | null,
 ): Promise<T> {
   const token = getAuthToken();
   if (!token) {
@@ -26,6 +27,9 @@ async function apiCall<T>(
 
   const headers = new Headers(options.headers || {});
   headers.set('Authorization', `Bearer ${token}`);
+  if (walletAddress) {
+    headers.set('X-Wallet-Address', walletAddress);
+  }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
@@ -39,7 +43,16 @@ async function apiCall<T>(
   }
 
   if (!response.ok) {
-    throw new Error(`API call failed: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const payload = await response.json();
+      if (payload?.detail) {
+        detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail);
+      }
+    } catch {
+      // keep statusText
+    }
+    throw new Error(`API call failed: ${detail}`);
   }
 
   return response.json();
@@ -165,8 +178,29 @@ interface ReceiptListResponse {
   files: Array<{
     filename: string;
     size: number;
-    uploaded_at: number;
+    uploaded_at: number | string;
   }>;
+}
+
+function parseUploadDate(value: number | string | undefined | null): string {
+  if (value == null || value === '') {
+    return new Date().toISOString();
+  }
+
+  if (typeof value === 'number') {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const fromUnix = new Date(ms);
+    if (!Number.isNaN(fromUnix.getTime())) {
+      return fromUnix.toISOString();
+    }
+  }
+
+  const fromIso = new Date(value);
+  if (!Number.isNaN(fromIso.getTime())) {
+    return fromIso.toISOString();
+  }
+
+  return new Date().toISOString();
 }
 
 interface ReceiptProcessResponse {
@@ -194,7 +228,8 @@ function toReceiptFromUpload(payload: ReceiptUploadResponse): Receipt {
 function toReceiptList(payload: ReceiptListResponse): Receipt[] {
   return payload.files.map((file) => ({
     filename: file.filename,
-    upload_date: new Date(file.uploaded_at * 1000).toISOString(),
+    // Backend returns ISO created_at strings; older clients used unix seconds.
+    upload_date: parseUploadDate(file.uploaded_at),
     size: file.size,
   }));
 }
@@ -214,14 +249,18 @@ function toReceiptFromProcess(payload: ReceiptProcessResponse): Receipt {
 }
 
 export const receiptsApi = {
-  upload: async (file: File): Promise<Receipt> => {
+  upload: async (file: File, walletAddress?: string | null): Promise<Receipt> => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiCall<ReceiptUploadResponse>('/api/receipts/upload', {
-      method: 'POST',
-      body: formData,
-    });
+    const response = await apiCall<ReceiptUploadResponse>(
+      '/api/receipts/upload',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      walletAddress,
+    );
 
     return toReceiptFromUpload(response);
   },
@@ -231,10 +270,14 @@ export const receiptsApi = {
     return toReceiptList(response);
   },
 
-  process: async (filename: string): Promise<Receipt> => {
-    const response = await apiCall<ReceiptProcessResponse>(`/api/ocr/process/${filename}`, {
-      method: 'POST',
-    });
+  process: async (filename: string, walletAddress?: string | null): Promise<Receipt> => {
+    const response = await apiCall<ReceiptProcessResponse>(
+      `/api/ocr/process/${filename}`,
+      {
+        method: 'POST',
+      },
+      walletAddress,
+    );
 
     return toReceiptFromProcess(response);
   },
@@ -419,12 +462,20 @@ export interface Challenge {
 }
 
 export const challengesApi = {
-  create: async (transactionId: number, reason: string): Promise<Challenge> => {
-    return apiCall<Challenge>('/api/challenges', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transaction_id: transactionId, reason }),
-    });
+  create: async (
+    transactionId: number,
+    reason: string,
+    walletAddress?: string | null,
+  ): Promise<Challenge> => {
+    return apiCall<Challenge>(
+      '/api/challenges',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction_id: transactionId, reason }),
+      },
+      walletAddress,
+    );
   },
 
   list: async (status?: string): Promise<Challenge[]> => {
@@ -432,12 +483,20 @@ export const challengesApi = {
     return apiCall<Challenge[]>(`/api/challenges${params}`);
   },
 
-  resolve: async (challengeId: number, evidence: string): Promise<Challenge> => {
-    return apiCall<Challenge>(`/api/challenges/${challengeId}/resolve`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ evidence }),
-    });
+  resolve: async (
+    challengeId: number,
+    evidence: string,
+    walletAddress?: string | null,
+  ): Promise<Challenge> => {
+    return apiCall<Challenge>(
+      `/api/challenges/${challengeId}/resolve`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evidence }),
+      },
+      walletAddress,
+    );
   },
 };
 
