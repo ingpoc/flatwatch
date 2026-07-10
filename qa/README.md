@@ -1,7 +1,16 @@
-# FlatWatch QA notes
+# FlatWatch QA
 
-See portfolio ledger in `test-ledger.json` (and full harness under `aadhaar-chain/qa`).
+Pointer only. **Do not** keep a ledger or grader copy here.
 
-Root-cause fixes validated here:
-- Server-side AadhaarChain trust enforcement on receipt upload, OCR process, challenge create/resolve
-- Receipt list date parsing accepts ISO `created_at` (was treating ISO as unix seconds → `Invalid time value`)
+Portfolio control owner: [`../aadhaar-chain/qa/docs/workflow/README.md`](../../aadhaar-chain/qa/docs/workflow/README.md)
+
+Run from `aadhaar-chain/qa`:
+
+```bash
+cd ../aadhaar-chain/qa
+npm run grade:deterministic && npm run grade:browser && npm run grade:wallet
+```
+
+Repo-local notes (not portfolio ownership):
+- Server-side AadhaarChain trust on receipt upload, OCR, challenge create/resolve
+- Receipt list date parsing accepts ISO `created_at`

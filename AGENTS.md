@@ -1,21 +1,26 @@
 # AGENTS.md
 
-## Instruction Inheritance
+## Scope
 
-- Read `../AGENTS.md` first for portfolio-wide governance.
-- This file adds only `flatwatch`-specific execution guidance.
-- If this file conflicts with the root workspace `AGENTS.md`, the root file wins unless it explicitly allows a repo-local exception.
-- `CLAUDE.md` is optional context and not a separate policy authority.
+Repo-local guidance for `flatwatch` only.
+
+**Portfolio QA / browser / same-wallet control owner:** `../aadhaar-chain/qa/docs/workflow/`  
+Entry: `../aadhaar-chain/qa/docs/workflow/README.md`
+
+There is no parent `../AGENTS.md` in this multi-repo checkout. Do not invent one. Do not fork the ledger or graders under this repo.
+
+`CLAUDE.md` is optional context, not a separate policy authority.
 
 ## Repository Type
 
-- FlatWatch is a full-stack application with a Python backend and a Next.js frontend.
+Full-stack: Python backend + Next.js frontend.
 
 ## Repo-Specific Verification
 
-- Backend changes should be validated from `backend`.
-- Frontend changes should be validated from `frontend`.
-- BEFORE portfolio browser / same-wallet testing -> read `../aadhaar-chain/qa/docs/workflow/browser-testing-control-plane.md` then `../aadhaar-chain/qa/docs/workflow/portfolio-browser-acceptance-loop.md`.
-- Session friction / standing traps -> `../aadhaar-chain/qa/docs/workflow/session-friction-log.md`.
-- FlatWatch is a trust consumer: confirm AadhaarChain verified trust before concluding elevated receipt/challenge/agent failures.
-- Local ledger mirror: `qa/test-ledger.json`. Prefer running graders from `aadhaar-chain/qa`.
+- Backend changes → validate from `backend`
+- Frontend changes → validate from `frontend`
+- Local ports: API `43104`, UI `43105`
+- FlatWatch is a trust consumer: confirm AadhaarChain verified trust before concluding elevated receipt/challenge/agent failures
+- BEFORE portfolio browser / same-wallet testing → control plane, then acceptance loop
+- Session friction → `../aadhaar-chain/qa/docs/workflow/session-friction-log.md`
+- Run graders only from `aadhaar-chain/qa` (no local ledger copy)
