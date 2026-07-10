@@ -2,5 +2,10 @@
 .codex/
 .venv/
 
+# Local env overrides (use .env.example)
+.env
+backend/.env
+frontend/.env.local
+
 # Local Netlify folder
 .netlify
