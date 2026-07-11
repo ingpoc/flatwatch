@@ -9,3 +9,5 @@ frontend/.env.local
 
 # Local Netlify folder
 .netlify
+
+backend/data/

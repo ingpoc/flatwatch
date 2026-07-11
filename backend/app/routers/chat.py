@@ -65,7 +65,7 @@ async def chat_query(
     if not runtime.agent_access:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=runtime.blocked_reason or "Claude Agent runtime is unavailable.",
+            detail=runtime.blocked_reason or "Cursor agent runtime is unavailable.",
         )
     session_id = request.session_id or f"chat-{current_user.id}"
     existing = get_agent_session(session_id, current_user.id)

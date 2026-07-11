@@ -25,7 +25,7 @@ interface RenderMessage {
 const DEFAULT_RUNTIME: AgentRuntimeSnapshot = {
   app_id: 'flatwatch',
   auth_mode: 'unavailable',
-  model: 'claude-haiku-4-5-20251001',
+  model: 'composer-2.5',
   runtime_available: false,
   agent_access: false,
   trust_state: 'no_identity',
@@ -226,7 +226,7 @@ function ChatContent() {
   );
 
   return (
-    <PageLayout title="Chat Guard" description="Claude-powered financial summaries, evidence review, and trust-aware guidance.">
+    <PageLayout title="Chat Guard" description="Cursor-powered financial summaries, evidence review, and trust-aware guidance.">
       <div className="flex flex-wrap gap-2">
         <Badge variant={runtime.runtime_available ? 'default' : 'secondary'}>Runtime {runtime.auth_mode}</Badge>
         <Badge variant={trust.state === 'verified' ? 'default' : 'secondary'}>
@@ -240,8 +240,8 @@ function ChatContent() {
 
       {!runtime.runtime_available && user ? (
         <NoticeCard
-          title="Claude runtime unavailable"
-          description={runtime.blocked_reason ?? 'Configure supported Claude Agent SDK auth or use the local Claude CLI dev adapter on localhost.'}
+          title="Cursor runtime unavailable"
+          description={runtime.blocked_reason ?? 'Set CURSOR_API_KEY from https://cursor.com/dashboard/integrations and restart the FlatWatch backend.'}
           tone="secondary"
         />
       ) : null}

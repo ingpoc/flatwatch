@@ -12,8 +12,8 @@ from app.database import init_db, get_db_path
 def make_runtime_snapshot(**overrides):
     payload = {
         "app_id": "flatwatch",
-        "auth_mode": "local_cli",
-        "model": "claude-haiku-4-5-20251001",
+        "auth_mode": "api_key",
+        "model": "composer-2.5",
         "runtime_available": True,
         "agent_access": True,
         "trust_state": "manual_review",

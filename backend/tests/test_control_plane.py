@@ -13,8 +13,8 @@ from app.main import app
 def make_runtime_snapshot(**overrides):
     payload = {
         "app_id": "flatwatch",
-        "auth_mode": "local_cli",
-        "model": "claude-haiku-4-5-20251001",
+        "auth_mode": "api_key",
+        "model": "composer-2.5",
         "runtime_available": True,
         "agent_access": True,
         "trust_state": "manual_review",
@@ -73,7 +73,7 @@ def test_runtime_snapshot_returns_auth_mode_and_usage(client, resident_token, mo
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["auth_mode"] == "local_cli"
+    assert payload["auth_mode"] == "api_key"
     assert payload["runtime_available"] is True
     assert payload["mode"] == "read_only"
     assert payload["usage"]["requests_used"] == 0
@@ -90,7 +90,17 @@ def test_runtime_snapshot_returns_auth_mode_and_usage(client, resident_token, mo
     ],
 )
 def test_flatwatch_runtime_snapshot_trust_fixture_matrix(monkeypatch, trust_state):
-    monkeypatch.setenv("CLAUDE_AGENT_AUTH_MODE", "bedrock")
+    from app.runtime_config import AgentRuntimePolicy
+
+    monkeypatch.setattr(
+        "app.control_plane.resolve_runtime_policy",
+        lambda request=None: AgentRuntimePolicy(
+            runtime_available=True,
+            auth_mode="api_key",
+            model="composer-2.5",
+            blocked_reason=None,
+        ),
+    )
 
     snapshot = build_runtime_snapshot(
         subject_id=f"resident-{trust_state}",
@@ -126,7 +136,7 @@ def test_runtime_unavailable_blocks_session_creation(client, resident_token, mon
         agent_access=False,
         mode="blocked",
         allowed_capabilities=[],
-        blocked_reason="Claude runtime unavailable in this environment.",
+        blocked_reason="Cursor runtime unavailable in this environment.",
     )
     monkeypatch.setattr("app.routers.control_plane.build_runtime_snapshot", lambda *args, **kwargs: snapshot)
 

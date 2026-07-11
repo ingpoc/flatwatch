@@ -44,7 +44,7 @@ async def process_chat_query(
 ) -> dict:
     """
     Process user chat query (POC mock).
-    In production, this will use Claude Agent SDK.
+    Uses the Cursor SDK agent runtime for multi-turn conversations.
     """
     query_lower = query.lower()
 
